@@ -80,7 +80,7 @@ Each one gets: how it's handled → which test proves it → a DECISIONS.md entr
 - 200 with garbled JSON, missing fields, a wrong zone (`Europe/London`), an offset that doesn't
   match the tz rules for that instant, or a year that's way off → `time.invalid_response`, **don't** try to "fix" it.
 - Slow response (inside the timeout but high latency) → round-trip time is stored. Above a threshold
-  (e.g. 1.5 s) the punch is accepted but flagged "low precision" (or rejected: decide in plan 02).
+  (e.g. 1.5 s) the punch is accepted but flagged "low precision" (decided, see §7).
 - Primary and secondary disagree → fail closed (D3).
 - Provider time earlier than the last punch → `time.went_backwards` (D7).
 - Provider returns a stale/cached response (same time on two calls) → detected by the monotonic guard and by comparing with elapsed `Stopwatch` time; logged.
@@ -217,8 +217,8 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 | Scope creep (the manager area can grow large). | Phases 1–5 are the must-have core; 6–7 are cut to the minimum if time runs short and the cut is recorded in DECISIONS.md. |
 | Auth adds complexity that isn't the focus. | Keep it minimal (D10); no registration or password reset. |
 
-## 7. Open questions for approval
-1. Reject or accept+flag a punch with high provider latency (> 1.5 s)? *Proposal: accept + flag.*
-2. Should an employee be able to clock out of a forgotten (>16 h) shift themselves? *Proposal: yes, real time recorded + flagged; the manager reviews it.*
-3. Include auth at all, or use an "employee picker" demo mode? *Proposal: minimal cookie auth (D10). Without it, "who punched" can't be trusted.*
-4. Playwright e2e: worth the time? *Proposal: only if Phases 1–7 finish early.*
+## 7. Resolved questions (answered 2026-11-17)
+1. **High provider latency (> 1.5 s):** accept the punch, store the round-trip time, flag it "low precision".
+2. **Forgotten clock-out (> 16 h):** the employee can clock out themselves; the real trusted time is recorded and the shift is flagged for manager review.
+3. **Auth:** minimal cookie auth with seeded users and roles (D10).
+4. **Playwright e2e:** only if Phases 1–7 finish early; otherwise listed as "not done" in DECISIONS.md.
