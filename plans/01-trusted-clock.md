@@ -1,6 +1,6 @@
 # 01 — Trusted clock
 
-**Status:** Approved 2026-11-17 (Q1–Q3 answered, see §8) · Step 1 in progress
+**Status:** Approved 2026-11-17 (Q1–Q3 answered, see §8) · Step 1 implemented, awaiting commit review
 **Lead agent:** backend · **Supporting:** qa (failure-mode tests, adversarial review)
 **Master plan refs:** D1, D2, D3, D7, D9 · §4 "Time provider" · CLAUDE.md rule 1
 

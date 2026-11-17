@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ClockManager.Api.Application.Time;
 using ClockManager.Api.Common.Errors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,12 @@ public sealed class TestOnlyController : ControllerBase
             "A shift is already open.",
             "Clock out before clocking in again.",
             new Dictionary<string, object?> { ["openShiftId"] = 42 });
+
+    [HttpGet("time-error")]
+    public IActionResult TimeError() =>
+        throw new TrustedTimeException(
+            ErrorCodes.TimeUnavailable,
+            [new ProviderOutcome("time.now", "timeout"), new ProviderOutcome("timeapi.io", "rate_limited")]);
 
     [HttpGet("unhandled")]
     public IActionResult Unhandled() => throw new InvalidOperationException(SecretMessage);

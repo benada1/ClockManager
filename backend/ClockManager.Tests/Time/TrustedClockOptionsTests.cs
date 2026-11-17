@@ -1,0 +1,95 @@
+using ClockManager.Api.Infrastructure.Time;
+using ClockManager.Tests.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
+namespace ClockManager.Tests.Time;
+
+/// <summary>The host must refuse to start with a bad <c>TrustedClock</c> section (D-010, plan 01 §4.5).</summary>
+public sealed class TrustedClockOptionsTests
+{
+    [Theory]
+    [InlineData("TrustedClock:TimeoutMs", "499", "TimeoutMs")]
+    [InlineData("TrustedClock:TimeoutMs", "10001", "TimeoutMs")]
+    [InlineData("TrustedClock:CrossCheckToleranceMs", "99", "CrossCheckToleranceMs")]
+    [InlineData("TrustedClock:CrossCheckToleranceMs", "30001", "CrossCheckToleranceMs")]
+    [InlineData("TrustedClock:LowPrecisionThresholdMs", "99", "LowPrecisionThresholdMs")]
+    [InlineData("TrustedClock:LowPrecisionThresholdMs", "3000", "must be less than TimeoutMs")]   // == timeout
+    [InlineData("TrustedClock:LowPrecisionThresholdMs", "4000", "must be less than TimeoutMs")]   // > timeout
+    [InlineData("TrustedClock:Primary:Name", "", "Primary.Name")]
+    [InlineData("TrustedClock:Secondary:Name", "time.now", "must differ")]
+    [InlineData("TrustedClock:Primary:BaseUrl", "not a url", "Primary.BaseUrl")]
+    [InlineData("TrustedClock:Primary:BaseUrl", "ftp://time.now/", "Primary.BaseUrl")]
+    [InlineData("TrustedClock:Primary:BaseUrl", "https://time.now", "ending in '/'")]
+    [InlineData("TrustedClock:Secondary:BaseUrl", "/relative/", "Secondary.BaseUrl")]
+    public void Host_fails_to_start_with_invalid_trusted_clock_options(string key, string value, string messageContains)
+    {
+        using var factory = WithConfig(new Dictionary<string, string?> { [key] = value });
+
+        var ex = Record.Exception(() => factory.CreateClient());
+
+        var validation = FindOptionsValidationException(ex);
+        Assert.NotNull(validation);
+        Assert.Contains(messageContains, validation.Message);
+    }
+
+    [Fact]
+    public void Host_fails_to_start_when_lowering_timeout_below_the_default_threshold()
+    {
+        // TimeoutMs alone is in range, but now 1500 (threshold) >= 1000 (timeout).
+        using var factory = WithConfig(new Dictionary<string, string?> { ["TrustedClock:TimeoutMs"] = "1000" });
+
+        var validation = FindOptionsValidationException(Record.Exception(() => factory.CreateClient()));
+
+        Assert.NotNull(validation);
+        Assert.Contains("must be less than TimeoutMs", validation.Message);
+    }
+
+    [Fact]
+    public void Defaults_from_appsettings_match_the_plan()
+    {
+        using var factory = new ApiFactory();
+
+        var options = factory.Services.GetRequiredService<IOptions<TrustedClockOptions>>().Value;
+
+        Assert.Equal(3000, options.TimeoutMs);
+        Assert.Equal(2000, options.CrossCheckToleranceMs);
+        Assert.Equal(1500, options.LowPrecisionThresholdMs);
+        Assert.Equal("time.now", options.Primary!.Name);
+        Assert.Equal("https://time.now/", options.Primary.BaseUrl);
+        Assert.Equal("timeapi.io", options.Secondary!.Name);
+        Assert.Equal("https://timeapi.io/", options.Secondary.BaseUrl);
+    }
+
+    [Fact]
+    public void Registers_time_now_as_a_time_source()
+    {
+        using var factory = new ApiFactory();
+
+        var sources = factory.Services.GetServices<ITimeSource>().ToList();
+
+        var source = Assert.Single(sources);
+        Assert.IsType<TimeNowSource>(source);
+        Assert.Equal("time.now", source.Name);
+    }
+
+    private static WebApplicationFactory<Program> WithConfig(Dictionary<string, string?> values) =>
+        new ApiFactory().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(values)));
+
+    private static OptionsValidationException? FindOptionsValidationException(Exception? ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is OptionsValidationException ove) return ove;
+            if (current is AggregateException agg)
+            {
+                return agg.InnerExceptions.Select(FindOptionsValidationException).FirstOrDefault(e => e is not null);
+            }
+        }
+        return null;
+    }
+}
