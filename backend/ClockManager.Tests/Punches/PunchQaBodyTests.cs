@@ -1,0 +1,378 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using ClockManager.Api.Common.Errors;
+using ClockManager.Tests.Fakes;
+using ClockManager.Tests.Persistence;
+using Microsoft.EntityFrameworkCore;
+using static ClockManager.Tests.Persistence.PersistenceTestData;
+
+namespace ClockManager.Tests.Punches;
+
+/// <summary>
+/// QA pass, slice A group 1: everything a client can put in the request (body, content type, query, headers) and
+/// whether any of it can change the stored time or surface an exception. Complements P15/P16 in PunchApiTests.
+/// </summary>
+[Trait("Category", "Integration")]
+public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassFixture<MigratedDatabaseFixture>
+{
+    private const string FakeNow = "2026-01-12T07:00:00Z";
+
+    // ---- Body shapes ----
+
+    [SqlServerTheory]
+    [InlineData("""{"intent":"clock-in","utc":"2020-01-01T00:00:00Z"}""")]
+    [InlineData("""{"intent":"clock-in","timestamp":1577836800}""")]
+    [InlineData("""{"intent":"clock-in","clockOutUtc":"2020-01-01T00:00:00Z"}""")]
+    [InlineData("""{"intent":"clock-in","Time":"2020-01-01T00:00:00Z"}""")]     // other casing of an extra key
+    [InlineData("""{"intent":"clock-in","at":null}""")]                        // an extra key even with a null value
+    [InlineData("""{"intent":"clock-in","nested":{"time":"2020-01-01T00:00:00Z"}}""")]
+    [InlineData("""{"intent":"clock-in",}""")]                                 // trailing comma
+    [InlineData("""{"intent":"clock-in" /* hi */}""")]                         // comment
+    [InlineData("""{"intent":["clock-in"]}""")]
+    [InlineData("""{"intent":true}""")]
+    [InlineData("""{"intent":{"x":1}}""")]
+    [InlineData("""{"intent":"clock-in\u0000"}""")]
+    [InlineData("""{"intent":"clock-in\n"}""")]
+    [InlineData("""{"intent":"CLOCK-IN"}""")]
+    [InlineData("null")]
+    [InlineData("\"clock-in\"")]
+    [InlineData("12")]
+    public async Task Bad_body_is_400_request_invalid_with_no_exception_text_and_the_stored_time_is_untouched(string body)
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, body, user);
+
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+        Assert.Equal(0, clock.Calls);
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+    }
+
+    [SqlServerFact]
+    public async Task Property_name_casing_Intent_is_accepted_like_any_ASP_NET_Core_JSON_and_stores_the_clock_time()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, """{"Intent":"clock-in"}""", user);
+
+        Assert.Equal(HttpStatusCode.Created, reply.Status);
+        Assert.Equal(Utc(FakeNow), await StoredClockInAsync(employeeId));
+    }
+
+    [SqlServerFact]
+    public async Task Whitespace_around_the_JSON_and_a_utf8_bom_are_harmless()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, "  \r\n {\"intent\" : \"clock-in\"}\n ", user);
+
+        Assert.Equal(HttpStatusCode.Created, reply.Status);
+    }
+
+    /// <summary>
+    /// Duplicate JSON member: System.Text.Json keeps the LAST value, so this runs clock-out. Observed, not asserted as
+    /// "wrong": the stored idempotency Intent is derived from the same parsed value, so it is consistent (see next test).
+    /// Another parser in front of the API (WAF, gateway) might read the FIRST member: see QA-17.
+    /// </summary>
+    [SqlServerFact]
+    public async Task Duplicate_intent_members_run_the_LAST_one_and_the_stored_idempotency_intent_matches_it()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+        var key = Guid.NewGuid().ToString();
+        await SendAsync(client, """{"intent":"clock-in"}""", user);
+        clock.Set("2026-01-12T15:30:00Z");
+
+        var reply = await SendAsync(client, """{"intent":"clock-in","intent":"clock-out"}""", user, key: key);
+
+        Assert.Equal(HttpStatusCode.Created, reply.Status);
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId, openOnly: true)); // it clocked OUT
+        var replay = await SendAsync(client, """{"intent":"clock-out"}""", user, key: key);
+        Assert.Equal(reply.Text, replay.Text); // stored as clock-out
+    }
+
+    [SqlServerFact(Skip = "QA-17 open: a body with a duplicate \"intent\" member is accepted (last one wins) instead of 400; parser differential risk. Expected: 400 request.invalid.")]
+    [Trait("Status", "KnownBug")]
+    public async Task Duplicate_intent_members_are_rejected_as_ambiguous()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, """{"intent":"clock-in","intent":"clock-out"}""", user);
+
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+    }
+
+    [SqlServerFact]
+    public async Task Huge_body_is_400_not_a_crash_and_does_not_reach_the_provider()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+        var huge = "{\"intent\":\"" + new string('x', 5 * 1024 * 1024) + "\"}";
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var reply = await SendAsync(client, huge, user, ct: cts.Token);
+
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+        Assert.Equal(0, clock.Calls);
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+    }
+
+    [SqlServerFact]
+    public async Task Deeply_nested_body_is_400_not_a_crash()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+        var nested = "{\"intent\":" + new string('[', 5000) + new string(']', 5000) + "}";
+
+        var reply = await SendAsync(client, nested, user);
+
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+    }
+
+    // ---- Content-Type ----
+
+    [SqlServerTheory]
+    [InlineData("text/plain")]
+    [InlineData("application/x-www-form-urlencoded")]
+    [InlineData("application/xml")]
+    public async Task Wrong_content_type_is_a_415_ProblemDetails_and_nothing_is_saved(string contentType)
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, """{"intent":"clock-in"}""", user, contentType: contentType);
+
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, reply.Status);
+        AssertNoLeak(reply);
+        Assert.False(string.IsNullOrEmpty(reply.Body.GetProperty("code").GetString()));
+        Assert.Equal(0, clock.Calls);
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+    }
+
+    [SqlServerFact]
+    public async Task Form_body_with_intent_field_is_415_not_a_punch()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, "intent=clock-in", user, contentType: "application/x-www-form-urlencoded");
+
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, reply.Status);
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+    }
+
+    [SqlServerFact]
+    public async Task No_content_type_at_all_is_415_and_a_json_charset_parameter_is_fine()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+
+        var none = await SendAsync(client, """{"intent":"clock-in"}""", user, contentType: null);
+        var charset = await SendAsync(client, """{"intent":"clock-in"}""", user, contentType: "application/json; charset=utf-8");
+
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, none.Status);
+        Assert.Equal(HttpStatusCode.Created, charset.Status);
+    }
+
+    [SqlServerFact]
+    public async Task Invalid_utf8_bytes_in_the_body_are_400_not_500()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+        byte[] bytes = [.. "{\"intent\":\"clock-in"u8.ToArray(), 0xFF, 0xFE, .. "\"}"u8.ToArray()];
+
+        var reply = await SendAsync(client, bytes, user, contentType: "application/json");
+
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+    }
+
+    // ---- Every way a client might influence the time ----
+
+    [SqlServerFact]
+    public async Task Query_string_time_and_header_dates_are_ignored_and_the_stored_time_is_the_fake_clocks()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+        var headers = new Dictionary<string, string>
+        {
+            ["Date"] = "Wed, 01 Jan 2020 00:00:00 GMT",
+            ["X-Forwarded-For"] = "203.0.113.9",
+            ["X-Forwarded-Host"] = "evil.example",
+            ["X-Forwarded-Proto"] = "https",
+            ["X-Forwarded-Date"] = "2020-01-01T00:00:00Z",
+            ["X-Request-Time"] = "2020-01-01T00:00:00Z",
+            ["X-Timestamp"] = "1577836800",
+            ["X-HTTP-Method-Override"] = "GET",
+            ["If-Unmodified-Since"] = "Wed, 01 Jan 2020 00:00:00 GMT",
+            ["Accept-Language"] = "ar-SA",   // non-Gregorian calendar: must not change anything stored
+        };
+
+        var reply = await SendAsync(client, """{"intent":"clock-in"}""", user,
+            url: "/api/punches?time=2020-01-01T00:00:00Z&utc=2020-01-01T00:00:00Z&timestamp=1577836800&clockIn=2020-01-01", headers: headers);
+
+        Assert.Equal(HttpStatusCode.Created, reply.Status);
+        Assert.Equal(FakeNow, reply.Body.GetProperty("clockIn").GetProperty("utc").GetString());
+        Assert.Equal(Utc(FakeNow), await StoredClockInAsync(employeeId));
+        Assert.Equal(1, clock.Calls);
+    }
+
+    [SqlServerFact]
+    public async Task Duplicate_query_and_a_form_style_time_in_a_JSON_request_change_nothing()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, """{"intent":"clock-in"}""", user, url: "/api/punches?time=1&time=2&time[]=3");
+
+        Assert.Equal(HttpStatusCode.Created, reply.Status);
+        Assert.Equal(Utc(FakeNow), await StoredClockInAsync(employeeId));
+    }
+
+    // ---- Errors never leak ----
+
+    [SqlServerFact]
+    public async Task Unknown_route_method_and_GET_on_punches_are_ProblemDetails_without_stack_traces()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+
+        foreach (var (method, url) in new[] { ("GET", "/api/punches"), ("PUT", "/api/punches"), ("DELETE", "/api/punches/1"), ("POST", "/api/punches/extra") })
+        {
+            using var request = new HttpRequestMessage(new HttpMethod(method), url);
+            request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+            using var response = await client.SendAsync(request);
+            var text = await response.Content.ReadAsStringAsync();
+
+            Assert.True((int)response.StatusCode is 404 or 405, $"{method} {url} → {(int)response.StatusCode}");
+            Assert.DoesNotContain("   at ", text);
+            Assert.DoesNotContain("Exception", text);
+            if (text.Length > 0) Assert.Equal("code", JsonDocument.Parse(text).RootElement.EnumerateObject().Single(p => p.Name == "code").Name);
+        }
+        Assert.Equal(0, clock.Calls);
+    }
+
+    [SqlServerFact(Skip = "QA-18 open: error responses are Content-Type application/json (controller [Produces] overrides it), not application/problem+json (RFC 7807). Expected: application/problem+json.")]
+    [Trait("Status", "KnownBug")]
+    public async Task Error_responses_use_the_problem_json_media_type()
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+
+        var bad = await SendAsync(client, "{}", user);
+        var conflict = await SendAsync(client, """{"intent":"clock-out"}""", user);
+
+        Assert.Equal("application/problem+json", bad.ContentType);
+        Assert.Equal("application/problem+json", conflict.ContentType);
+    }
+
+    [SqlServerTheory(Skip = "QA-19 open: 400 bodies echo System.Text.Json internals (CLR type names like ClockManager.Api.Application.Punches.PunchRequest / System.String, 'LineNumber | BytePositionInLine') and a 'request field is required' noise entry. Expected: only stable, client-facing messages.")]
+    [Trait("Status", "KnownBug")]
+    [InlineData("""{"intent":"clock-in",}""")]
+    [InlineData("""{"intent":true}""")]
+    [InlineData("12")]
+    [InlineData("""{"intent":"clock-in","time":"x"}""")]
+    public async Task Bad_body_400_does_not_expose_CLR_type_names_or_parser_positions(string body)
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, body, user);
+
+        Assert.Equal(HttpStatusCode.BadRequest, reply.Status);
+        foreach (var leak in new[] { "System.", "ClockManager.", "LineNumber", "BytePositionInLine", ".NET member", "Path: $" })
+            Assert.False(reply.Text.Contains(leak), $"'{leak}' leaked: {reply.Text}");
+    }
+
+    // ---------- Helpers ----------
+
+    private sealed record Reply(HttpStatusCode Status, string Text, JsonElement Body, string? ContentType);
+
+    private async Task<(int Id, string Username)> AddEmployeeAsync()
+    {
+        await using var db = database.CreateContext();
+        var employee = NewEmployee();
+        db.Employees.Add(employee);
+        await db.SaveChangesAsync();
+        return (employee.Id, employee.Username);
+    }
+
+    private async Task<NodaTime.Instant> StoredClockInAsync(int employeeId)
+    {
+        await using var db = database.CreateContext();
+        return (await db.Shifts.AsNoTracking().SingleAsync(s => s.EmployeeId == employeeId)).ClockIn.Utc;
+    }
+
+    private static Task<Reply> SendAsync(
+        HttpClient client, string body, string? user, string? key = null, string? contentType = "application/json",
+        string url = "/api/punches", IReadOnlyDictionary<string, string>? headers = null, CancellationToken ct = default) =>
+        SendAsync(client, Encoding.UTF8.GetBytes(body), user, key, contentType, url, headers, ct);
+
+    private static async Task<Reply> SendAsync(
+        HttpClient client, byte[] body, string? user, string? key = null, string? contentType = "application/json",
+        string url = "/api/punches", IReadOnlyDictionary<string, string>? headers = null, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new ByteArrayContent(body) };
+        if (contentType is not null) request.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+        if (user is not null) request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", key ?? Guid.NewGuid().ToString());
+        if (headers is not null) foreach (var (name, value) in headers) request.Headers.TryAddWithoutValidation(name, value);
+
+        using var response = await client.SendAsync(request, ct);
+        var text = await response.Content.ReadAsStringAsync(ct);
+        var json = text.Length == 0 ? default : JsonDocument.Parse(text).RootElement.Clone();
+        return new Reply(response.StatusCode, text, json, response.Content.Headers.ContentType?.MediaType);
+    }
+
+    private static void AssertProblem(Reply reply, HttpStatusCode status, string code)
+    {
+        Assert.Equal(status, reply.Status);
+        Assert.Contains(reply.ContentType, new[] { "application/json", "application/problem+json" }); // QA-18: today json
+        Assert.Equal(code, reply.Body.GetProperty("code").GetString());
+        Assert.True(reply.Body.TryGetProperty("traceId", out _));
+        AssertNoLeak(reply);
+    }
+
+    private static void AssertNoLeak(Reply reply)
+    {
+        Assert.False(reply.Text.Contains("   at "), reply.Text);          // stack frames
+        Assert.False(reply.Text.Contains("Exception"), reply.Text);
+    }
+}

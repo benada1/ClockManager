@@ -411,6 +411,18 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Many status requests at once / while the providers are down | One shared provider call; a failure is remembered for 1 s only (D-035) | `StatusApiTests.Parallel_status_calls_*`, `ServerNowProviderTests` |
 | Several closed shifts: which is "last"? | The latest clock-out, not the latest clock-in (D-036) | `StatusApiTests.The_last_closed_shift_is_the_one_with_the_latest_clock_out_*` |
 | Zurich time string when the offset has zero minutes | Always `+01:00` / `+02:00` (NodaTime's `ExtendedIso` would write `+01`) | `PunchRulesTests.Normal_day_shift_*` |
+| Duplicate `intent` member in the JSON body | Last member wins (System.Text.Json default) and the stored idempotency Intent matches it; ambiguous for a gateway that reads the first | `PunchQaBodyTests.Duplicate_intent_members_*` (QA-17, open) |
+| Error responses' media type | `application/json`, not `application/problem+json` (the `[Produces]` filter); the body shape is right | `PunchQaBodyTests.Error_responses_use_the_problem_json_media_type` (QA-18, open) |
+| 400 for malformed JSON | Status and `code` are stable, but `errors` echoes System.Text.Json messages and CLR type names | `PunchQaBodyTests.Bad_body_400_does_not_expose_*` (QA-19, open) |
+| Handled refusal logging | The app logs 4xx at Information and 5xx at Warning, but the .NET 8 `ExceptionHandlerMiddleware` also logs an Error per refusal | `PunchQaLogTests.A_handled_business_refusal_does_not_log_at_Error` (QA-20, open) |
+| Trusted instant less than 100 ns after the last punch | Passes the ns guard, is stored equal, and the DB CHECK fails: 500. Unreachable with millisecond providers | `PunchQaGuardTests.Clock_out_less_than_one_database_tick_*` (QA-21, open) |
+| Year 0001 or 9999 from the clock | 500 if a clock layer ever let it through; the sources reject years outside [2026, 2100) | `PunchQaGuardTests.An_absurd_instant_from_the_clock_is_never_a_500` (QA-22, open) |
+| One wrong far-future but in-range reading (e.g. 2099) | Accepted; later honest punches are 503 `went_backwards` until a manager correction. No local-clock cap (rule 1); the defence is the two-provider cross-check | `PunchQaGuardTests.A_far_future_but_in_range_instant_*` |
+| Same UUID in other case or with whitespace | One key (parsed to a Guid, trimmed). Other spellings and two headers give 400 `idempotency.key_missing` | `PunchQaKeyTests.*` |
+| Replay of a stored key after the employee was deactivated | The who-check comes first: 403 `employee.inactive`, not the stored answer; the stored shift is untouched | `PunchQaKeyTests.Replay_after_the_employee_was_deactivated_*` |
+| Bob uses alice's key | Keys are scoped per employee: bob gets his normal result, no 422, no leak | `PunchQaKeyTests.Bob_using_alices_key_*` |
+| Client-supplied time (extra JSON keys, `?time=`, `Date` / `X-Forwarded-*` headers) | Extra keys give 400; query and headers are ignored; the stored time equals the trusted clock | `PunchQaBodyTests.Bad_body_*`, `Query_string_time_and_header_dates_are_ignored_*` |
+| Clock-out 1 ms after the clock-in | Accepted; 0 s duration, flagged `short_shift` | `PunchQaGuardTests.Clock_out_one_millisecond_after_*` |
 
 ## Not done (out of scope)
 
@@ -470,3 +482,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 - **A same-key twin can answer 503 once instead of replaying (QA-15).** In a very narrow window (twin A commits between
   twin B's state check and B's last-punch read, and B's trusted time is not later than A's), B gets 503
   `time.went_backwards`. Nothing is wrong at rest: the client retries with the same key and gets A's stored answer.
+- **One consistently wrong far-future reading inside [2026, 2100) is accepted (qa slice A).** If both providers agree on a
+  wrong future time (e.g. 2099-12-31), the punch is saved and every later honest punch is 503 `time.went_backwards` until
+  a manager corrects it. Rule 1 forbids bounding it with the local clock, so the defences are the two-provider
+  cross-check and each source's year window. Recovery needs the manager correction path with an audit trail (Phase 7).
