@@ -44,3 +44,13 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** Added a commit convention to CLAUDE.md §6.1 (one commit per task, the user reviews every
   commit, corrections as separate `fix:` commits, no rewriting pushed history). Pushed history was **not**
   rewritten: the commits already on `main` stay as they are.
+
+## 2026-11-17 — Provider name came from config instead of the provider (QA-03)
+
+- **Asked:** Phase 1 step 1, the time.now provider (backend agent).
+- **What went wrong:** `TimeNowSource` set its `Name` from `TrustedClock:Primary:Name`. If an operator
+  swapped Primary and Secondary, every time.now reading would be stored as coming from "timeapi.io": a
+  wrong audit trail. The backend agent flagged it as an open question, but it still went into commit `419a757`.
+- **Found by:** the qa agent while writing step-2 tests (the tests were written before the step-2 code).
+- **Fix:** A fixed `ProviderName` constant. The config slots only choose roles. The regression test
+  failed before the fix (`Expected "time.now", Actual "timeapi.io"`) and passes after it. Separate `fix:` commit.

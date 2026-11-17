@@ -433,6 +433,24 @@ public sealed class TimeNowSourceTests
         Assert.DoesNotContain("client_ip", reading.RawPayload);
     }
 
+    [Fact]
+    public async Task Name_is_always_time_now_even_when_it_plays_the_secondary_role_QA03()
+    {
+        // Regression (QA-03): the name used to come from the Primary slot in config. With the roles
+        // swapped, time.now readings were credited to "timeapi.io" in the audit trail.
+        var options = Options.Create(new TrustedClockOptions
+        {
+            Primary = new TimeProviderEndpoint { Name = "timeapi.io", BaseUrl = "https://timeapi.io/" },
+            Secondary = new TimeProviderEndpoint { Name = "time.now", BaseUrl = "https://time.now/" },
+        });
+        var handler = StubHttpMessageHandler.Returning(System.Net.HttpStatusCode.OK, Fixtures.Read("TimeNow/t1-winter.json"));
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://time.now/") };
+        var source = new TimeNowSource(http, _timer, options, ZurichTime.FromTzdb());
+
+        Assert.Equal("time.now", source.Name);
+        Assert.Equal("time.now", AssertReading(await source.FetchAsync(default)).Source);
+    }
+
     // ---------- Helpers ----------
 
     private async Task<TimeSourceResult> FetchAsync(StubHttpMessageHandler handler, int timeoutMs = 3000, CancellationToken ct = default)

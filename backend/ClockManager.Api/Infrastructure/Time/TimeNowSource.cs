@@ -25,8 +25,14 @@ internal sealed class TimeNowSource : HttpTimeSource
 
     private readonly ZurichTime _zurich;
 
+    /// <summary>
+    /// Fixed identity of this provider. It never comes from config: the <c>Primary</c>/<c>Secondary</c> slots only
+    /// choose which provider plays which role, so the audit trail always names the provider that really answered.
+    /// </summary>
+    internal const string ProviderName = "time.now";
+
     public TimeNowSource(HttpClient http, IElapsedTimer timer, IOptions<TrustedClockOptions> options, ZurichTime zurich)
-        : base(http, timer, options, options.Value.Primary!.Name)
+        : base(http, timer, options, ProviderName)
     {
         _zurich = zurich;
     }
