@@ -208,6 +208,8 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Provider `detail`, raw body or parsed time in the public health check | Never included: names, outcome codes, RTTs, delta, code only | `TimeHealthEndpointTests.Never_exposes_provider_detail_payload_or_parsed_time` |
 | Time lab requested outside Development (Production, Staging, Testing) | 404; controller not discovered, `ITimeLab` not registered, no provider call | `TimeLabTests.Does_not_exist_outside_Development` |
 | Time lab when a punch would fail (disagree, all down) | Still 200; `decision.result = failed`, `code`, `httpStatus: 503` | `TimeLabTests.Development_returns_200_even_when_a_punch_would_get_503`, `Disagreement_is_a_failed_decision_*` |
+| `/health/time` during graceful shutdown (stopping token cancelled, client still connected) (QA-10) | 503 with `canPunch: false`, `code: time.unavailable`; was 500 `server.error`. A client that disconnects still gets no body | `TrustedClockStep4QaTests.QA10_health_time_during_shutdown_is_503_not_500_server_error` |
+| A provider throws instead of returning a result, seen from `/health/time` and the 503 body | Only the outcome code `error`, never exception text; the Time lab (dev only) shows the detail | `TrustedClockStep4QaTests.Health_time_shows_error_outcome_*`, `Punch_503_body_for_two_throwing_providers_has_no_exception_text` |
 | Server process in another time zone or culture (E16) | No effect: NodaTime tzdb + invariant parsing. Full suite identical under Pacific/Kiritimati + th-TH, Pacific/Pago_Pago + ar-SA, Asia/Kathmandu + fa-IR | `HostEnvironmentOverrideTests` (env `CLOCKMANAGER_TEST_TZ` / `CLOCKMANAGER_TEST_CULTURE`), CI run with `TZ` set |
 | Time lab around DST (T6 repeated hour, T7 DST start) | Local time and offset from tzdb at the instant (02:30 +02:00 / 02:15 +01:00; 03:00 +02:00), even if the provider's offset says otherwise | `TimeLabTests.Local_time_and_offset_come_from_tzdb_around_DST` |
 
@@ -227,9 +229,16 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-17 | Clock guard was a regex scan only | Misses `using static` tricks; only runs if someone runs `verify` | Compile-time analyzer, RS0030 as an error (D-001) | `890849b` |
 | 2026-11-17 | Committed one file per tiny change, without showing each commit first | Too granular, and the user didn't review each commit before it landed | Commit convention in CLAUDE.md §6.1: one commit per task, user reviews every commit (later relaxed by the user for the deadline: autonomous commits, review at phase end, `59346cf`) | `7b60d51` |
 | 2026-11-17 | `TimeNowSource` took its name from the `Primary` config slot | With the roles swapped, time.now readings would be credited to "timeapi.io" in the audit trail. Found by the qa agent (QA-03) while writing step-2 tests | Fixed name `TimeNowSource.ProviderName = "time.now"`; regression test `Name_is_always_time_now_even_when_it_plays_the_secondary_role_QA03` | `4544b1d` |
-| 2026-11-17 | Startup-validation tests from Phase 1 steps 1–2 | Racy under CPU load (`WebApplicationFactory` disposed the host first → `ObjectDisposedException`), so they could fail without a bug. Found by the qa agent in step 4 | `HostStartup` helper reads the host's startup log (D-018) | this commit |
+| 2026-11-17 | Startup-validation tests from Phase 1 steps 1–2 | Racy under CPU load (`WebApplicationFactory` disposed the host first → `ObjectDisposedException`), so they could fail without a bug. Found by the qa agent in step 4 | `HostStartup` helper reads the host's startup log (D-018) | `b4fec47` |
+| 2026-11-17 | `/health/time` refresh runs on the app's stopping token | During shutdown the cancellation surfaced as an unhandled error: 500 `server.error` instead of 503. Found by the qa agent (QA-10) | The controller maps that cancellation to 503 `time.unavailable` | this commit |
 
 ## Known limitations
+
+- **The first provider call after a restart or an idle minute is slow (QA-11).** A cold DNS + TCP + TLS setup costs
+  ~0.8–0.9 s per provider (vs 0.13–0.22 s warm); end-to-end right after startup we measured ~2.5 s. That punch is still
+  correct, but it is flagged `LowPrecision`, and in the worst case it could become single-source or a 503. Planned
+  for Phase 3 (punch path): a startup warm-up whose result is never used for a record, and `SocketsHttpHandler`
+  pool settings (longer idle timeout, `PooledConnectionLifetime`, short `ConnectTimeout`, no redirects).
 
 - **A provider that answers with a WRONG time blocks all punches; a DEAD one does not.** If one provider is up but
   off by more than the tolerance, every punch fails with 503 `time.providers_disagree` (we can't tell which one is
