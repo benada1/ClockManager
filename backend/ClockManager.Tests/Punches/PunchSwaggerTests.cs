@@ -28,6 +28,15 @@ public sealed class PunchSwaggerTests
         Assert.Contains(("X-Dev-Employee", "header"), parameters);
         Assert.Equal(["201", "400", "401", "403", "409", "422", "503"], post.GetProperty("responses").EnumerateObject().Select(r => r.Name));
 
+        // The status endpoint gets the same dev header, and documents 200 / 401 / 403 only (a time problem is never an error there).
+        var get = doc.GetProperty("paths").GetProperty("/api/me/status").GetProperty("get");
+        var getParameters = get.GetProperty("parameters").EnumerateArray()
+            .Select(p => (p.GetProperty("name").GetString(), p.GetProperty("in").GetString()))
+            .ToList();
+        Assert.Contains(("X-Dev-Employee", "header"), getParameters);
+        Assert.DoesNotContain(("Idempotency-Key", "header"), getParameters);
+        Assert.Equal(["200", "401", "403"], get.GetProperty("responses").EnumerateObject().Select(r => r.Name));
+
         var body = doc.GetProperty("components").GetProperty("schemas").GetProperty("PunchRequest");
         Assert.Equal(["intent"], body.GetProperty("properties").EnumerateObject().Select(p => p.Name));
     }

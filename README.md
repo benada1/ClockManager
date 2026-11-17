@@ -105,6 +105,19 @@ A 201 returns the shift: `workDate` (Zurich date of the clock-in), `clockIn` / `
 `shift.not_open`, 422 `idempotency.key_reused`, 503 `time.*` (no trusted time, or `time.went_backwards`), 400 `request.invalid` /
 `idempotency.key_missing`, 401 `auth.unauthenticated`, 403 `employee.inactive`.
 
+**Status:** `GET /api/me/status` (same `X-Dev-Employee` header, no `Idempotency-Key`) returns the caller's state for
+the UI: `employee`, `openShift` and `lastClosedShift` (same shape as a punch response, or `null`), `serverNow` and the
+top-level `flags`.
+
+    Invoke-RestMethod -Uri http://localhost:5258/api/me/status -Headers @{ 'X-Dev-Employee' = 'alice' } | ConvertTo-Json -Depth 6
+
+`serverNow` (`utc`, `zurich`, `source: "trusted-clock"`, `ageMs`) is the trusted time **for display only**: it is cached
+for up to 10 s (`ServerNow:CacheSeconds`, 1-30), so `utc` is the instant as it was fetched and `ageMs` says how old it is.
+The UI estimates "now" as `utc + ageMs + its own elapsed time`; it is never used for a punch, which always asks the
+providers afresh (D-035). The flag `forgotten_clock_out` appears when the open shift is older than `ShiftRules:MaxOpenShiftHours`
+(16 h, strictly). If no trusted time is available, the endpoint still answers 200 with `serverNow: null` and no time-based
+flag (D-036). Errors: 401 `auth.unauthenticated`, 403 `employee.inactive`.
+
 ## Tests and quality gate
 
     dotnet test backend/ClockManager.sln

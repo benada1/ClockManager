@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using ClockManager.Api.Application.Time;
+using ClockManager.Api.Infrastructure.Time;
 using ClockManager.Tests.Fakes;
 using ClockManager.Tests.Persistence;
 using Microsoft.AspNetCore.Builder;
@@ -18,7 +19,11 @@ namespace ClockManager.Tests.Punches;
 /// database, with <see cref="ITrustedClock"/> replaced by a <see cref="FakeTrustedClock"/>. No network. Every log entry
 /// is captured so a test can check what was (not) logged.
 /// </summary>
-internal sealed class PunchApiFactory(MigratedDatabaseFixture database, FakeTrustedClock clock, string environment = "Development")
+internal sealed class PunchApiFactory(
+    MigratedDatabaseFixture database,
+    FakeTrustedClock clock,
+    string environment = "Development",
+    IElapsedTimer? timer = null)
     : WebApplicationFactory<Program>
 {
     public ConcurrentQueue<LogEntry> Logs { get; } = new();
@@ -37,6 +42,7 @@ internal sealed class PunchApiFactory(MigratedDatabaseFixture database, FakeTrus
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ITrustedClock>(clock); // last registration wins
+            if (timer is not null) services.AddSingleton(timer); // a hand-moved monotonic timer: the status cache TTL and ages
             services.AddSingleton<ILoggerProvider>(new CapturingLoggerProvider(Logs));
             services.AddSingleton<IStartupFilter>(new TrackCompletedRequests(Completed));
         });

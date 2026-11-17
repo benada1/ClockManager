@@ -12,7 +12,9 @@ public sealed class OptionsValidationTests
     [InlineData("ShiftRules:MaxOpenShiftHours", "49")]
     [InlineData("ShiftRules:ShortShiftSeconds", "0")]
     [InlineData("ShiftRules:ShortShiftSeconds", "3601")]
-    public void Host_fails_to_start_with_out_of_range_shift_rules(string key, string value)
+    [InlineData("ServerNow:CacheSeconds", "0")]
+    [InlineData("ServerNow:CacheSeconds", "31")]
+    public void Host_fails_to_start_with_out_of_range_options(string key, string value)
     {
         using var factory = new ApiFactory().WithWebHostBuilder(builder =>
             builder.ConfigureAppConfiguration((_, config) =>

@@ -32,8 +32,22 @@ public static class ShiftFlags
     public const string ShortShift = "short_shift";
 
     /// <summary>
+    /// An OPEN shift older than <see cref="ShiftRulesOptions.MaxOpenShiftHours"/> (strictly), measured against the trusted
+    /// server time. Reported only by the status endpoint (top-level <c>flags</c>), and only when that time is available (D-036).
+    /// </summary>
+    public const string ForgottenClockOut = "forgotten_clock_out";
+
+    /// <summary>True when the open shift started more than <c>MaxOpenShiftHours</c> before <paramref name="now"/> (strict, like <see cref="LongShift"/>).</summary>
+    public static bool IsForgotten(Shift openShift, Instant now, ShiftRulesOptions rules)
+    {
+        ArgumentNullException.ThrowIfNull(openShift);
+        ArgumentNullException.ThrowIfNull(rules);
+        return openShift.ClockOut is null && now - openShift.ClockIn.Utc > Duration.FromHours(rules.MaxOpenShiftHours);
+    }
+
+    /// <summary>
     /// Flags of a closed shift, from the exact UTC duration. An open shift gets none here: whether it is a forgotten
-    /// clock-out depends on "now", which the status endpoint (plan 03 step 3) supplies.
+    /// clock-out depends on "now", which only the status endpoint has (<see cref="IsForgotten"/>).
     /// </summary>
     public static IReadOnlyList<string> For(Shift shift, ShiftRulesOptions rules)
     {
@@ -57,6 +71,12 @@ public static class ShiftViewMapper
     /// </summary>
     private static readonly OffsetDateTimePattern ZurichPattern =
         OffsetDateTimePattern.CreateWithInvariantCulture("uuuu'-'MM'-'dd'T'HH':'mm':'ss;FFFFFFFFFo<+HH:mm>");
+
+    /// <summary>An instant as Zurich local time with its offset as <c>+HH:mm</c>, e.g. <c>2026-11-17T08:00:00.123+01:00</c>.</summary>
+    public static string FormatZurich(Instant utc, Offset zurichOffset) => ZurichPattern.Format(utc.WithOffset(zurichOffset));
+
+    /// <summary>An instant as ISO 8601 UTC, e.g. <c>2026-11-17T07:00:00.123Z</c>.</summary>
+    public static string FormatUtc(Instant utc) => InstantPattern.ExtendedIso.Format(utc);
 
     public static ShiftView ToView(Shift shift, ShiftRulesOptions rules)
     {

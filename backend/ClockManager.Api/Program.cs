@@ -1,5 +1,6 @@
 using ClockManager.Api.Application.Punches;
 using ClockManager.Api.Application.Shifts;
+using ClockManager.Api.Application.Status;
 using ClockManager.Api.Infrastructure.Identity;
 using ClockManager.Api.Common;
 using ClockManager.Api.Common.Errors;
@@ -26,6 +27,10 @@ builder.Services.AddPersistence();
 // Who is punching: the X-Dev-Employee header in Development only; nobody can sign in elsewhere until Phase 4 (D-027).
 builder.Services.AddCurrentEmployee(builder.Environment);
 builder.Services.AddScoped<PunchService>();
+
+// The status endpoint's cached server time: display and flags only, never a record (D-035). PunchService doesn't use it.
+builder.Services.AddServerNow();
+builder.Services.AddScoped<StatusService>();
 
 builder.Services.AddOptions<ShiftRulesOptions>()
     .BindConfiguration(ShiftRulesOptions.SectionName)
