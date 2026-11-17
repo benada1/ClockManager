@@ -1,16 +1,22 @@
 using ClockManager.Api.Application.Shifts;
+using ClockManager.Api.Common;
 using ClockManager.Api.Common.Errors;
 using ClockManager.Api.Infrastructure.Time;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// [DevelopmentOnly] controllers (the Time lab) are not even discovered outside Development: 404, not in Swagger.
+builder.Services.AddControllers().ExcludeDevelopmentOnlyControllers(builder.Environment);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddAppProblemDetails();
 
 builder.Services.AddTrustedClock();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddTimeLab();
+}
 
 builder.Services.AddOptions<ShiftRulesOptions>()
     .BindConfiguration(ShiftRulesOptions.SectionName)

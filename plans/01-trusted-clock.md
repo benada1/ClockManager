@@ -1,6 +1,6 @@
 # 01 — Trusted clock
 
-**Status:** Approved 2026-11-17 (Q1–Q3 answered, see §8) · Step 1 committed · Step 2 implemented (timeapi.io, orchestrator, DI; qa findings QA-01/04/05/06/07 handled)
+**Status:** Approved 2026-11-17 (Q1–Q3 answered, see §8) · Steps 1–3b implemented (`/health/time` D-012; Time lab D-013, page D-014–D-017; steps 3 and 3b landed in one commit because they share the wiring) · Step 4 (qa) next
 **Lead agent:** backend · **Supporting:** qa (failure-mode tests, adversarial review)
 **Master plan refs:** D1, D2, D3, D7, D9 · §4 "Time provider" · CLAUDE.md rule 1
 
@@ -174,7 +174,8 @@ An opt-in **live** test (`[Trait("Category","Live")]`, skipped in CI) hits both 
 | 1 | Contract, options, NodaTime, `FakeTrustedClock`, time.now client + validation + its tests (E7–E9, E12, E14, E18) | backend | `feat(time): add ITrustedClock with time.now provider and response validation` |
 | 2 | qa writes the failing tests for the orchestration (E1–E6, E15, E17) and timeapi.io (E10, E11, E13) **from this plan**; backend adds timeapi.io + orchestrator + 503 mapping until they pass | qa → backend | `feat(time): add timeapi.io fallback, cross-check and fail-closed errors` |
 | 3 | `/health/time` + its tests; README section; plan status | backend | `feat(time): add /health/time endpoint` |
-| 4 | qa adversarial review of the finished clock (E16 TZ run, anything missed) → each real finding = a failing test + a fix, as **separate `fix:` commits** | qa → backend | `fix(time): ...` (only if found) |
+| 3b | **Time lab** (added 2026-11-17 at the user's request, to see the providers live): a Development-only endpoint `GET /api/dev/time-lab` that runs the **real** `ITimeSource`s + orchestrator once and returns, per provider, the outcome, RTT, sanitized raw body and parsed UTC/offset, plus the final decision (accepted provider, cross-check delta, or the 503 code). It's not mapped outside Development. A frontend page with an "Ask both providers" button shows it. | backend (endpoint) → frontend (page) | `feat(time): add dev-only time lab to inspect providers live` |
+| 4 | qa adversarial review of the finished clock (E16 TZ run, anything missed; plus: the one unexplained test failure seen once on 2026-11-17 and not reproduced in 31 runs — stress the suite under CPU load; the ~2.5 s **cold first request** after startup seen end-to-end (TLS/DNS), which can make the first punch low-precision or near the timeout; health check during shutdown; a provider that throws in the Time lab; `/health/time` isn't behind the Vite `/api` proxy — decide before the Phase 5 banner) → each real finding = a failing test + a fix, as **separate `fix:` commits** | qa → backend | `fix(time): ...` (only if found) |
 
 DECISIONS.md entries go **in the commit that makes the decision**: D-006 providers (time.now + timeapi.io,
 worldtimeapi rejected), D-007 NodaTime over `TimeZoneInfo`, D-008 both providers on every punch + 2 s

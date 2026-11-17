@@ -104,6 +104,60 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** If timeapi.io ever changes the shape (offset added, milliseconds rounded), it reads as invalid until we adapt; time.now keeps serving (D-009).
 - **Refs:** plans/01-trusted-clock.md §4.3 · `TimeApiIoSourceTests` (`Resolves_repeated_hour_with_dst_flag_E11`, `Applies_tzdb_at_the_dst_boundaries`, `Rejects_milliSeconds_that_is_not_the_truncated_fraction`)
 
+### D-012 — `/health/time`: 10 s cache on a monotonic timer, single-flight, never on the punch path
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** `GET /health/time` is public and unauthenticated (until Phase 4) and will be polled by the UI banner (Phase 5). Every uncached call costs two outbound requests to free providers with unpublished rate limits.
+- **Options:** (a) no cache · (b) `IMemoryCache` with absolute expiration (reads the local clock, needs a `clock-ok` exemption) · (c) own cache, freshness measured on the monotonic `IElapsedTimer` (Stopwatch).
+- **Decision:** (c). The singleton `TimeHealthCheck` keeps the last report for 10 s, counted from when the answer **arrived**; ok and failed reports alike. Concurrent callers during a refresh share one in-flight run (no stampede). The refresh runs on the app's stopping token, so one disconnecting caller can't cancel it for the others. `ITrustedClock.GetNowAsync` never reads this cache: punches always ask both providers. 200 when a punch would succeed, else 503, same body shape; only outcome codes, RTTs, delta and the `time.*` code: never `Detail`, raw bodies or provider times.
+- **Why:** (a) lets any client multiply provider traffic and risks 429s that would then hit real punches. (c) needs no banned API at all (nothing to exempt from the clock guard) and is testable with the fake timer. Caching failures matters most: during an outage, polling must not multiply calls.
+- **Trade-offs:** The report can be up to 10 s (+ one round trip) old, so a recovered provider shows as down for up to 10 s, and vice versa. A punch can fail with 503 while the health check still says ok (or the reverse); the punch's own answer is the authority.
+- **Refs:** plans/01-trusted-clock.md §4.6, §4.7 · `Infrastructure/Time/TimeHealthCheck.cs` · `TimeHealthCheckTests` · `TimeHealthEndpointTests`
+
+### D-013 — Development-only Time lab (`GET /api/dev/time-lab`), allowed to show provider details
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** The developer asked to see the providers live: what each one sent, how long it took, whether they agreed and what a punch would get (plan 01 step 3b). `/health/time` deliberately hides all of that.
+- **Options:** (a) read the logs only · (b) put the details into `/health/time` · (c) a separate diagnostic endpoint, mapped only in Development.
+- **Decision:** (c). One uncached run of the real orchestrator (`TrustedClock.RunAsync`) per request; always 200, also when the decision is a failure. Per provider: role, outcome, RTT, HTTP status, `detail`, sanitized raw payload, and UTC / Zurich local / offset **computed from the instant with tzdb**, not copied from the provider. Plus the cross-check numbers and the decision (accepted provider or the 503 code). Outside Development the controller is removed from MVC discovery (`[DevelopmentOnly]` + an `IApplicationFeatureProvider`) and `ITimeLab` is not registered: the route is a 404 and absent from Swagger.
+- **Why:** (a) is slow to read and doesn't show the decision as one picture. (b) would expose internal error text and payloads on a public endpoint. On a developer's machine, `detail` (e.g. `HTTP 429`, `no complete response within 3000 ms`) is exactly what is useful, and the payload is already sanitized (no `client_ip`).
+- **Trade-offs:** Each click is two real outbound calls (uncached by design); fine for one developer. A misconfigured `ASPNETCORE_ENVIRONMENT=Development` in production would expose it; the same is true of Swagger.
+- **Refs:** plans/01-trusted-clock.md §6 step 3b · `Controllers/Dev/TimeLabController.cs` · `Infrastructure/Time/TimeLabMapper.cs` · `Common/DevelopmentOnly.cs` · `TimeLabTests`
+
+### D-014 — Hash routing instead of a router library
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** frontend
+- **Context:** The app needs a few screens (home, Time lab, later punch / history / manager).
+- **Options:** (a) react-router · (b) hash routing with `useSyncExternalStore` on `hashchange` · (c) History API paths.
+- **Decision:** (b), ~15 lines in `frontend/src/router.js`.
+- **Why:** No dependency, and deep links work without a server-side fallback route.
+- **Trade-offs:** URLs contain `#/`; no nested routes or loaders. Easy to swap for react-router if the app grows.
+- **Refs:** `frontend/src/router.js` · `frontend/src/App.jsx`
+
+### D-015 — Busy buttons use `aria-disabled` + an in-flight guard, not `disabled`
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** frontend
+- **Context:** Buttons that start a request must not double-submit (Time lab now, the punch button in Phase 5).
+- **Options:** (a) the `disabled` attribute · (b) `aria-disabled="true"` + a ref guard that ignores clicks while busy.
+- **Decision:** (b), with a visible busy style.
+- **Why:** A `disabled` button loses keyboard focus in most browsers, so keyboard and screen-reader users are dropped onto `<body>` when the request starts. (b) keeps focus and still blocks double clicks, even two in the same tick.
+- **Trade-offs:** Every click handler must check the guard; the server-side idempotency (Phase 3) is still the real protection.
+- **Refs:** `frontend/src/pages/TimeLab.jsx`
+
+### D-016 — The UI shows Zurich time from server strings, never from the browser clock or zone
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** frontend
+- **Context:** CLAUDE.md rule 1 and the repeated October hour (T6).
+- **Options:** (a) parse into `Date` and format in the browser's zone · (b) format server ISO instants with `Intl.DateTimeFormat({ timeZone: 'Europe/Zurich' })` · (c) show the server's `zurichLocal` + `zurichOffset` text.
+- **Decision:** (c) for the Time lab (fractions cut to milliseconds, CET/CEST added for +01:00/+02:00); (b) remains the plan for ordinary screens. Never (a).
+- **Why:** The browser's clock and zone play no part, and the offset is always visible, so the two "02:30" of October can be told apart.
+- **Trade-offs:** Depends on the server sending both strings; the punch DTOs (Phase 3) should keep them.
+- **Refs:** `frontend/src/lib/serverTime.js` · `frontend/src/pages/time-lab/ZurichTime.jsx`
+
+### D-017 — Dev-only mock API and an explicit "backend unreachable" marker in the Vite proxy
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** frontend
+- **Context:** UI error states (provider down, disagreement, API not running) must be checkable without breaking real providers.
+- **Options:** (a) test only against the real backend · (b) a Vite plugin serving fixed scenarios, only in `npm run dev:mock`.
+- **Decision:** (b), scenario chosen with `?mock=<name>` (accepted, single, lowprecision, dst, disagree, down, invalid, notdev, servererror, unreachable). The `/api` proxy answers a down backend with 502 + `X-Dev-Proxy-Error: backend-unreachable`, which the client turns into a `NetworkError`.
+- **Why:** Vite's bare 502 looks like a server error; every state can be shown on demand.
+- **Trade-offs:** The mock fixtures can drift from the contract (`TimeLabResponse` is the source of truth). Never part of the production bundle.
+- **Refs:** `frontend/dev/mockApi.js` · `frontend/vite.config.js`
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -138,6 +192,14 @@ left out, and known limitations. Entries are added in the same change as the cod
 | timeapi.io `dstActive` contradicts tzdb, e.g. `true` in January (E10) | `invalid_response` | `TimeApiIoSourceTests.Rejects_dst_flag_true_in_January_E10` |
 | timeapi.io redundant fields disagree with `dateTime`, or `milliSeconds` rounded instead of truncated | `invalid_response` | `TimeApiIoSourceTests.Rejects_redundant_field_that_disagrees_with_dateTime`, `Rejects_milliSeconds_that_is_not_the_truncated_fraction` |
 | timeapi.io `dateTime` with an offset, `Z`, 8 fraction digits or a culture format | `invalid_response`; only offset-less ISO is read | `TimeApiIoSourceTests.Rejects_dateTime_that_is_not_offset_less_iso` |
+| `/health/time` when providers disagree or are all down | 503 with `canPunch: false`, the punch's `time.*` code, per-provider outcome codes; same shape as 200 (D-012) | `TimeHealthEndpointTests.Returns_503_when_the_providers_disagree`, `Returns_503_when_all_providers_are_down` |
+| `/health/time` polled repeatedly, or many callers at once | Served from a 10 s cache (monotonic timer, from when the answer arrived), failures cached too; one in-flight refresh shared by all callers | `TimeHealthCheckTests.Second_call_within_10_s_*`, `A_failed_report_is_cached_too_*`, `Concurrent_callers_during_a_refresh_share_one_provider_call` |
+| A health-check caller disconnects during a refresh | Only that caller stops waiting; the shared refresh finishes for the others | `TimeHealthCheckTests.A_caller_that_gives_up_does_not_cancel_the_refresh_others_wait_for` |
+| Punch right after a cached health check | Punch path asks both providers every time; never reads the health cache | `TimeHealthEndpointTests.Punch_path_never_uses_the_health_cache` |
+| Provider `detail`, raw body or parsed time in the public health check | Never included: names, outcome codes, RTTs, delta, code only | `TimeHealthEndpointTests.Never_exposes_provider_detail_payload_or_parsed_time` |
+| Time lab requested outside Development (Production, Staging, Testing) | 404; controller not discovered, `ITimeLab` not registered, no provider call | `TimeLabTests.Does_not_exist_outside_Development` |
+| Time lab when a punch would fail (disagree, all down) | Still 200; `decision.result = failed`, `code`, `httpStatus: 503` | `TimeLabTests.Development_returns_200_even_when_a_punch_would_get_503`, `Disagreement_is_a_failed_decision_*` |
+| Time lab around DST (T6 repeated hour, T7 DST start) | Local time and offset from tzdb at the instant (02:30 +02:00 / 02:15 +01:00; 03:00 +02:00), even if the provider's offset says otherwise | `TimeLabTests.Local_time_and_offset_come_from_tzdb_around_DST` |
 
 ## Not done (out of scope)
 
@@ -161,7 +223,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 - **A provider that answers with a WRONG time blocks all punches; a DEAD one does not.** If one provider is up but
   off by more than the tolerance, every punch fails with 503 `time.providers_disagree` (we can't tell which one is
   right, D-008), while a provider that is down only drops the cross-check (D-009). Mitigation: the `providers`
-  extension and the log name both providers, and `/health/time` (plan 01 step 3) will show it. There is no config
+  extension and the log name both providers, and `/health/time` shows `crossCheck: "disagree"` (D-012). There is no config
   switch to drop the bad provider (swapping roles doesn't help: both are still asked). Not built: a third provider
   to break the tie, or a "single provider" mode.
 - **Generic error codes come from the HTTP status.** Errors produced only by a status (`request.not_found`, `request.method_not_allowed`, ...) get a code mapped from the status. Specific codes come only from `AppException`.

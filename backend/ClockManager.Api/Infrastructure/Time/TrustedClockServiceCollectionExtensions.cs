@@ -44,6 +44,32 @@ public static class TrustedClockServiceCollectionExtensions
         });
         services.AddTransient<ITrustedClock>(sp => sp.GetRequiredService<TrustedClock>());
 
+        // /health/time: a singleton that owns the 10 s cache (D-012). Each refresh resolves a fresh TrustedClock in its
+        // own scope, so the typed HttpClients are disposed after use instead of being pinned by the singleton.
+        services.AddSingleton(sp =>
+        {
+            var scopes = sp.GetRequiredService<IServiceScopeFactory>();
+            return new TimeHealthCheck(
+                async ct =>
+                {
+                    await using var scope = scopes.CreateAsyncScope();
+                    return await scope.ServiceProvider.GetRequiredService<TrustedClock>().RunAsync(ct);
+                },
+                sp.GetRequiredService<IElapsedTimer>(),
+                sp.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+        });
+        services.AddSingleton<ITimeHealth>(sp => sp.GetRequiredService<TimeHealthCheck>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// The Development-only Time lab (D-013): one uncached run of the real orchestrator per request. Call this only in
+    /// Development; its controller is excluded elsewhere (<c>ExcludeDevelopmentOnlyControllers</c>).
+    /// </summary>
+    public static IServiceCollection AddTimeLab(this IServiceCollection services)
+    {
+        services.AddTransient<ITimeLab, TimeLabRunner>();
         return services;
     }
 
