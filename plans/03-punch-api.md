@@ -1,6 +1,6 @@
 # 03 — Punch API
 
-**Status:** Questions answered 2026-11-17 (Q1 key required, Q2 went_backwards = 503, Q3 cached trusted server-now; recommended option for all three) · waiting for the go to build
+**Status:** Approved 2026-11-17 (Q1 key required, Q2 went_backwards = 503, Q3 cached trusted server-now) · Step 1 done (punch endpoint, D-027..D-031); step 2 (idempotency) next
 **Lead agent:** backend · **Supporting:** db (idempotency table, transaction review), qa (race, replay, failure tests)
 **Master plan refs:** D1, D5, D6, D7, D9 · §4 "Concurrency", "Business-rule edges" · CLAUDE.md rules 1 and 2
 

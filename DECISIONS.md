@@ -226,6 +226,52 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** About 20–40 s extra per run for the image pull and boot (partly hidden behind restore/build). CI uses SQL Server 2022 on Linux, the dev machine SQL Server 2025 Express on Windows; we only use long-standing features, and CI is the referee (plan 02 §8).
 - **Refs:** `.github/workflows/ci.yml` · `TestSqlServer.cs` · D-024
 
+### D-027 — Phase 3 "who is punching": a Development-only `X-Dev-Employee` header behind `ICurrentEmployee`
+- **Date:** 2026-11-17 · **Status:** Accepted (temporary, replaced in Phase 4) · **Area:** backend
+- **Context:** Punches need an employee, but login is Phase 4. The user chose "punch first, login later" (plan 03 §3).
+- **Options:** (a) build cookie login now · (b) `employeeId` in the punch body · (c) a dev-only header read by an `ICurrentEmployee` implementation registered only in Development.
+- **Decision:** (c). `X-Dev-Employee: <username>` loads the employee from the DB. Missing, blank, repeated or unknown → 401 `auth.unauthenticated`; `IsActive = false` → 403 `employee.inactive`. Outside Development the registered implementation always returns "nobody", so every punch is a 401 and the header is never read.
+- **Why:** `PunchService` depends only on `ICurrentEmployee`, so Phase 4 swaps the implementation without touching it. (b) would make "who" part of the client's payload, the kind of trust rule 2 forbids, and would leak into the contract.
+- **Trade-offs:** In Development anyone can act as anyone. Acceptable for a local dev stand-in; P17 proves Production ignores the header.
+- **Refs:** plans/03-punch-api.md §3 · `Infrastructure/Identity/DevHeaderCurrentEmployee.cs` · `PunchApiTests.P17_Production_ignores_X_Dev_Employee_and_answers_401`, `P18_*`
+
+### D-028 — Punch order: state check, then the provider call, then the write; no transaction around the provider call
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** A provider call can take up to 3 s (D-010). Rule 2 needs the one-open-shift and out-after-in rules to hold under races.
+- **Options:** (a) open a transaction (or lock the employee row), call the provider, write · (b) call the provider with no transaction, then write, and let the DB constraints catch races.
+- **Decision:** (b). Order: who → `Idempotency-Key` format → cheap state check (409 without asking a provider) → `ITrustedClock` → monotonic guard (D-030) → `SaveChanges`. A lost clock-in race (SQL 2601 on `UX_Shifts_OneOpenPerEmployee`) → 409 `shift.already_open` with the winner's shift; a lost clock-out race (`DbUpdateConcurrencyException` on `RowVersion`) → 409 `shift.not_open`.
+- **Why:** (a) holds locks for the length of an HTTP call and blocks every other punch for that employee (or more). The constraints already guarantee correctness; the state check is only a fast answer.
+- **Trade-offs:** In a race the losers have already used a provider request. Step 2 puts the shift and the idempotency record in one transaction, still after the provider call.
+- **Refs:** plans/03-punch-api.md §5 · `PunchService.cs` · `PunchApiTests.P5_*` (10 parallel clock-ins over HTTP, 3 rounds), `P12_*`
+
+### D-029 — The punch body is read strictly: only `intent`, exact values
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** Rule 1: the client never sends a punch time. With default JSON settings, `{"intent":"clock-in","time":"..."}` would be accepted and the extra field silently ignored.
+- **Options:** (a) ignore unknown fields (the default) · (b) reject unknown fields for the whole API (global `UnmappedMemberHandling.Disallow`) · (c) reject them for the punch body only (`[JsonUnmappedMemberHandling(Disallow)]` on `PunchRequest`).
+- **Decision:** (c). Any extra member, an intent other than exactly `clock-in` / `clock-out` (case-sensitive, no spaces), null, a number, `{}`, `[]`, bad JSON or no body → 400 `request.invalid`, before any service code runs: no provider call, nothing saved.
+- **Why:** A client that tries to send a time learns at once that it can't, instead of believing its time was used. (c) keeps the strictness visible on the one type where it matters, without changing other endpoints.
+- **Trade-offs:** Adding a field to the punch body later is a breaking change for old servers (fine: one deployable). The body is validated before authentication, so an invalid body gets 400 even without a signed-in employee.
+- **Refs:** `Application/Punches/PunchContracts.cs` · `PunchApiTests.P15_*` (12 bodies)
+
+### D-030 — A trusted time not strictly later than the employee's last punch is a 503 `time.went_backwards`
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** Providers can drift or be skewed (zurich-time-cases T10/T11). The DB only stops `ClockOut <= ClockIn` within one shift, not a new clock-in before the previous clock-out.
+- **Options:** status: (a) 409 · (b) 422 · (c) 503 (plan 03 Q2, user picked (c)). Reference: (i) the open shift's clock-in only · (ii) the latest of all the employee's clock-ins and clock-outs. Comparison: `<` or `<=`.
+- **Decision:** (c) with (ii) and `<=`: the new instant must be strictly later than `max(latest ClockIn, latest ClockOut)`, read after the provider call. Otherwise 503, nothing saved, a Warning log with both instants. **Exception:** if that latest punch was saved *during* our provider call (it differs from the snapshot taken at the state check: another tab, a double click), the state changed under us, so the answer is the race's 409 (`shift.already_open` with the open shift / `shift.not_open`), not a 503.
+- **Found by:** P5 under full-suite load: a loser that reached the guard after the winner had saved the same instant got 503 `time.went_backwards`. Regression tests: `PunchApiTests.Clock_in_with_the_same_time_as_a_clock_in_saved_during_its_provider_call_*`, `Clock_out_with_the_same_time_*` (both failed before the fix).
+- **Why:** The employee did nothing wrong; our time source is untrustworthy right now, the same as the other `time.*` 503s, so the UI shows the same "time problem, retry" banner. (ii) also stops a clock-in that would overlap the previous shift. Equal is refused: a zero-length shift (T11) is meaningless and the DB would refuse it anyway.
+- **Trade-offs:** If a provider stays behind, punches keep failing until it catches up (visible in the log). The repeated October hour is not affected: the guard compares instants, not wall-clock times (T6 passes).
+- **Refs:** `PunchRules.Check` · `PunchRulesTests.P11_*`, `Guard_tells_a_backwards_clock_from_a_punch_saved_during_the_provider_call` · `PunchApiTests.P11_*`
+
+### D-031 — Shift flags are computed on every read, not stored
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** A closed shift is flagged `long_shift` (> `MaxOpenShiftHours`) or `short_shift` (< `ShortShiftSeconds`); step 3 adds `forgotten_clock_out` for open shifts.
+- **Options:** (a) store flags as columns when the shift is closed · (b) compute them from the UTC instants and the current `ShiftRules` options each time a shift is returned.
+- **Decision:** (b), in `ShiftFlags.For`. Both bounds are strict: exactly 16 h is not long, exactly 60 s is not short. `durationSeconds` is the UTC difference truncated to whole seconds; flags use the exact duration.
+- **Why:** Flags are a view of facts (two instants) plus config, not facts themselves. Stored flags go stale when an admin changes the thresholds or a manager corrects a punch (Phase 7). `forgotten_clock_out` depends on "now" anyway, so it can't be stored.
+- **Trade-offs:** No index on flags: "all long shifts" is a query over the duration, not a column filter (fine at this scale; Phase 6 reports compute it in SQL).
+- **Refs:** `Application/Shifts/ShiftView.cs` · `PunchRulesTests.P13_*`, `P14_*`, `Flags_are_computed_from_the_UTC_duration_not_the_wall_clock_across_DST_end`
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -282,6 +328,20 @@ left out, and known limitations. Entries are added in the same change as the cod
 | UTC date stored instead of the Zurich work date (T3 overnight, T8 year end) | `CK_Shifts_*ZurichDate` refuses it | `ShiftIntegrityTests.T3_*`, `T8_*` |
 | Cross-check provider stored with a NULL delta (QA-12) | `CK_Shifts_*CrossCheck` refuses it (SQL 547); the delta needs an explicit `IS NOT NULL`, since `NULL >= 0` is UNKNOWN and passes a CHECK | `ShiftIntegrityTests.QA12_*` |
 | Blank provider or cross-check provider name in a stored punch (QA-13) | `CK_Shifts_*ProviderNotBlank` and `*CrossCheckedByNotBlank` refuse `''` and spaces (SQL 547); NULL cross-check (single source) stays allowed | `ShiftIntegrityTests.QA13_*` |
+| Clock In while a shift is open / Clock Out with none (normal click) | 409 `shift.already_open` (body has `openShift`) / 409 `shift.not_open`, answered before any provider call (D-028) | `PunchApiTests.Clock_in_while_a_shift_is_open_*`, `Clock_out_without_an_open_shift_*` |
+| 10 parallel Clock Ins over HTTP, same employee (P5) | All pass the state check, the unique index decides: exactly 1 × 201, 9 × 409 `shift.already_open` naming the winner's shift, 1 row | `PunchApiTests.P5_*` (3 rounds) |
+| Two tabs Clock Out the same shift (P12) | `RowVersion`: 1 × 201, 1 × 409 `shift.not_open`; the first clock-out stays | `PunchApiTests.P12_*` (3 rounds) |
+| Provider down / invalid / disagreeing during a punch (P9) | 503 with `time.unavailable` / `time.invalid_response` / `time.providers_disagree` and `providers`; no row, an open shift stays open | `PunchApiTests.P9_*` |
+| Trusted time equal to or before the last punch (T10, T11, P11) | 503 `time.went_backwards`, nothing saved, Warning logged (D-030); applies to a clock-in before the previous clock-out too | `PunchRulesTests.P11_*`, `PunchApiTests.P11_*` |
+| Another tab saves a punch at the same instant while ours waits for the provider (double click) | 409 of the lost race (`shift.already_open` + open shift / `shift.not_open`), not 503 `time.went_backwards`: the guard compares with a snapshot from before the call (D-030) | `PunchApiTests.Clock_in_with_the_same_time_as_*`, `Clock_out_with_the_same_time_as_*`, `Time_behind_a_punch_that_existed_before_the_call_is_still_503_*` |
+| Punch body with a `time` field, unknown intent, wrong case, no body (P15) | 400 `request.invalid`, no provider call, nothing saved (D-029) | `PunchApiTests.P15_*` |
+| Missing, non-canonical or all-zero `Idempotency-Key` | 400 `idempotency.key_missing`, no provider call (stored and replayed from plan 03 step 2) | `PunchApiTests.P16_*` |
+| `X-Dev-Employee` sent to Production (P17) / unknown or missing user / inactive employee (P18) | 401 `auth.unauthenticated` / 401 / 403 `employee.inactive`; no provider call (D-027) | `PunchApiTests.P17_*`, `Development_without_a_known_employee_is_401`, `P18_*` |
+| Client disconnects while the punch waits for the provider (P19) | The provider wait is cancelled, nothing saved, no Warning/Error and no 503 logged | `PunchApiTests.P19_*` |
+| Shift across DST start / end returned by the API (T4, T5, T6) | `durationSeconds` 25200 / 32400 / 2700 from UTC; each punch shows its own offset, e.g. `02:30+02:00` → `02:15+01:00` | `PunchRulesTests.P2_*`, `P3_*`, `PunchApiTests.Shift_across_DST_end_over_HTTP_*` |
+| Overnight / New Year's Eve shift returned by the API (T3, T8) | `workDate` = Zurich date of clock-in (2026-01-12, 2026-12-31); 23:30Z is already the next day in Zurich | `PunchRulesTests.P4_*` |
+| Long (17 h) / short (20 s) shift (P13, P14) | Flag `long_shift` / `short_shift` on the returned shift, strict bounds, from the UTC duration (D-031) | `PunchRulesTests.P13_*`, `P14_*`, `PunchApiTests.P13_P14_*` |
+| Zurich time string when the offset has zero minutes | Always `+01:00` / `+02:00` (NodaTime's `ExtendedIso` would write `+01`) | `PunchRulesTests.Normal_day_shift_*` |
 
 ## Not done (out of scope)
 
@@ -324,3 +384,6 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
   +02:00. Mitigation: `PunchStamp.From` checks the offset against tzdb before anything is saved;
   `ShiftIntegrityTests.Documented_gap_offset_that_disagrees_with_tzdb_is_accepted_by_the_database` records the gap.
 - **Generic error codes come from the HTTP status.** Errors produced only by a status (`request.not_found`, `request.method_not_allowed`, ...) get a code mapped from the status. Specific codes come only from `AppException`.
+- **Until plan 03 step 2, a retried punch is not replayed.** The `Idempotency-Key` header is required and checked
+  (UUID), but not stored yet. A retry after a lost response gets 409 `shift.already_open` (with the open shift in the
+  body) instead of the original 201. Step 2 adds the `IdempotencyRecords` table and replay.

@@ -1,0 +1,38 @@
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+
+namespace ClockManager.Api.Application.Punches;
+
+public enum PunchIntent
+{
+    ClockIn,
+    ClockOut,
+}
+
+/// <summary>
+/// Body of <c>POST /api/punches</c>: the intent only, never a time (CLAUDE.md rule 1).
+/// <para>
+/// Read STRICTLY on purpose (D-029): any member other than <c>intent</c> (e.g. <c>"time"</c>, <c>"clockInUtc"</c>) makes the
+/// body invalid, so the request is a 400 <c>request.invalid</c> before any service code runs: nothing is saved and no
+/// provider is asked. The attribute applies to this type only; the rest of the API keeps the default JSON settings.
+/// </para>
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class PunchRequest
+{
+    public const string ClockIn = "clock-in";
+    public const string ClockOut = "clock-out";
+
+    /// <summary><c>"clock-in"</c> or <c>"clock-out"</c>, exact and lower case.</summary>
+    [Required(AllowEmptyStrings = false)]
+    [RegularExpression("^(clock-in|clock-out)$", ErrorMessage = "intent must be \"clock-in\" or \"clock-out\".")]
+    public string? Intent { get; init; }
+
+    /// <summary>The validated intent. Call only after model validation passed.</summary>
+    public PunchIntent ToIntent() => Intent switch
+    {
+        ClockIn => PunchIntent.ClockIn,
+        ClockOut => PunchIntent.ClockOut,
+        _ => throw new InvalidOperationException($"Unvalidated intent '{Intent}'."),
+    };
+}

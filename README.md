@@ -75,6 +75,31 @@ If no server is reachable, the integration tests are **skipped** locally (the re
 `CI=true` they **fail**. GitHub Actions starts a SQL Server 2022 container with a password generated in each
 run, so the integration tests run on every push (D-026).
 
+## Punching (Phase 3)
+
+`POST /api/punches` clocks the caller in or out. The body is **only** the intent; the server takes the time from
+the trusted clock. Any other field (e.g. `"time"`) is rejected with 400 (`DECISIONS.md` D-029).
+
+Until login arrives in Phase 4, the caller is named by the **Development-only** header `X-Dev-Employee`
+(seeded users: `manager`, `alice`, `bob`, `carol`). In any other environment the header is ignored and every
+punch is a 401 (D-027). Each punch also needs an `Idempotency-Key` header with a new UUID (reuse the same one when
+you retry that punch; replay of retries is added in plan 03 step 2). Swagger at http://localhost:5258/swagger shows
+both headers.
+
+    $headers = @{ 'X-Dev-Employee' = 'alice'; 'Idempotency-Key' = [guid]::NewGuid().ToString() }
+    Invoke-RestMethod -Method Post -Uri http://localhost:5258/api/punches -Headers $headers `
+        -ContentType 'application/json' -Body '{"intent":"clock-in"}'
+
+    # or with curl.exe (PowerShell 7.3+ passes the JSON quotes through as written)
+    curl.exe -i -X POST http://localhost:5258/api/punches -H "X-Dev-Employee: alice" `
+        -H "Idempotency-Key: $([guid]::NewGuid())" -H "Content-Type: application/json" -d '{"intent":"clock-out"}'
+
+A 201 returns the shift: `workDate` (Zurich date of the clock-in), `clockIn` / `clockOut` with `utc`, `zurich`
+(with its offset), `provider`, `crossCheckedBy`, `lowPrecision`, `durationSeconds` (from the UTC instants) and
+`flags` (`long_shift`, `short_shift`). Errors are ProblemDetails with a stable `code`: 409 `shift.already_open` /
+`shift.not_open`, 503 `time.*` (no trusted time, or `time.went_backwards`), 400 `request.invalid` /
+`idempotency.key_missing`, 401 `auth.unauthenticated`, 403 `employee.inactive`.
+
 ## Tests and quality gate
 
     dotnet test backend/ClockManager.sln

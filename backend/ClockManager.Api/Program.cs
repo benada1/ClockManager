@@ -1,4 +1,6 @@
+using ClockManager.Api.Application.Punches;
 using ClockManager.Api.Application.Shifts;
+using ClockManager.Api.Infrastructure.Identity;
 using ClockManager.Api.Common;
 using ClockManager.Api.Common.Errors;
 using ClockManager.Api.Infrastructure.Persistence;
@@ -20,6 +22,10 @@ if (builder.Environment.IsDevelopment())
 }
 
 builder.Services.AddPersistence();
+
+// Who is punching: the X-Dev-Employee header in Development only; nobody can sign in elsewhere until Phase 4 (D-027).
+builder.Services.AddCurrentEmployee(builder.Environment);
+builder.Services.AddScoped<PunchService>();
 
 builder.Services.AddOptions<ShiftRulesOptions>()
     .BindConfiguration(ShiftRulesOptions.SectionName)

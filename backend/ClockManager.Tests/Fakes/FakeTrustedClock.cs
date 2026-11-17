@@ -11,6 +11,7 @@ namespace ClockManager.Tests.Fakes;
 /// var clock = new FakeTrustedClock("2026-10-25T00:30:00Z");
 /// clock.Set("2026-10-25T01:15:00Z");                          // move time between punches
 /// clock.FailWith(FakeTrustedClock.Unavailable());              // simulate an outage (→ 503)
+/// clock.Hold(); ...; await clock.WaitForCallsAsync(10); clock.Release();   // park callers inside the "provider call"
 /// </code>
 /// </summary>
 public sealed class FakeTrustedClock : ITrustedClock
@@ -21,13 +22,16 @@ public sealed class FakeTrustedClock : ITrustedClock
     private readonly object _gate = new();
     private Instant _now;
     private Exception? _failure;
+    private TaskCompletionSource? _hold;
+    private int _calls;
 
     public FakeTrustedClock(Instant now) => _now = now;
 
     /// <param name="isoUtc">ISO 8601 UTC, e.g. "2026-01-12T07:00:00Z".</param>
     public FakeTrustedClock(string isoUtc) : this(ParseUtc(isoUtc)) { }
 
-    public int Calls { get; private set; }
+    /// <summary>How many times <see cref="GetNowAsync"/> was entered (held callers included).</summary>
+    public int Calls => Volatile.Read(ref _calls);
 
     public void Set(Instant now)
     {
@@ -52,14 +56,51 @@ public sealed class FakeTrustedClock : ITrustedClock
         lock (_gate) _failure = null;
     }
 
-    public Task<TrustedInstant> GetNowAsync(CancellationToken ct)
+    /// <summary>
+    /// Following calls wait (like a slow provider) until <see cref="Release"/> or until their token is cancelled.
+    /// Lets a test put N requests past the state check before any of them saves (a real race), or disconnect a
+    /// client while its punch waits for the provider.
+    /// </summary>
+    public void Hold()
     {
-        ct.ThrowIfCancellationRequested();
+        lock (_gate) _hold ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    /// <summary>Lets every held call continue; they then read the current instant / failure.</summary>
+    public void Release()
+    {
+        TaskCompletionSource? hold;
         lock (_gate)
         {
-            Calls++;
-            if (_failure is not null) return Task.FromException<TrustedInstant>(_failure);
-            return Task.FromResult(new TrustedInstant(
+            hold = _hold;
+            _hold = null;
+        }
+        hold?.TrySetResult();
+    }
+
+    /// <summary>Waits until at least <paramref name="count"/> calls have entered the clock.</summary>
+    public async Task WaitForCallsAsync(int count, TimeSpan? timeout = null)
+    {
+        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(30));
+        while (Calls < count)
+        {
+            await Task.Delay(10, cts.Token);
+        }
+    }
+
+    public async Task<TrustedInstant> GetNowAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        Interlocked.Increment(ref _calls);
+
+        Task? hold;
+        lock (_gate) hold = _hold?.Task;
+        if (hold is not null) await hold.WaitAsync(ct);
+
+        lock (_gate)
+        {
+            if (_failure is not null) throw _failure;
+            return new TrustedInstant(
                 Utc: _now,
                 ZurichOffset: Zurich.OffsetAt(_now),
                 Provider: ProviderName,
@@ -67,7 +108,7 @@ public sealed class FakeTrustedClock : ITrustedClock
                 RawPayload: "",
                 CrossCheckedBy: null,
                 CrossCheckDeltaMs: null,
-                LowPrecision: false));
+                LowPrecision: false);
         }
     }
 

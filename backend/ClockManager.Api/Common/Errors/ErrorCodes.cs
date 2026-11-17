@@ -19,6 +19,10 @@ public static class ErrorCodes
 
     // Idempotency
     public const string IdempotencyKeyReused = "idempotency.key_reused";
+    public const string IdempotencyKeyMissing = "idempotency.key_missing";
+
+    // Employees
+    public const string EmployeeInactive = "employee.inactive";
 
     // Generic, derived from the HTTP status when nothing more specific is known
     public const string RequestInvalid = "request.invalid";
