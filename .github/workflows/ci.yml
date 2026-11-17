@@ -25,7 +25,14 @@ jobs:
           dotnet-version: 8.0.x
       - run: dotnet restore backend/ClockManager.sln
       - run: dotnet build backend/ClockManager.sln --no-restore --configuration Release
-      - run: dotnet test backend/ClockManager.sln --no-build --configuration Release --logger "trx" --results-directory TestResults
+      # TEMPORARY: the integration tests need SQL Server; the CI SQL container arrives in plan 02 step 2.
+      - run: dotnet test backend/ClockManager.sln --no-build --configuration Release --filter "Category!=Integration" --logger "trx" --results-directory TestResults
+      - name: Test again in an exotic time zone and culture (E16)
+        run: dotnet test backend/ClockManager.sln --no-build --configuration Release --filter "Category!=Integration" --logger "trx;LogFileName=tz.trx" --results-directory TestResults
+        env:
+          TZ: Pacific/Kiritimati
+          CLOCKMANAGER_TEST_TZ: Pacific/Kiritimati
+          CLOCKMANAGER_TEST_CULTURE: th-TH
       - uses: actions/upload-artifact@v4
         if: always()
         with:
