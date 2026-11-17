@@ -27,7 +27,8 @@ done thoroughly, with reasons, are better than many shallow ones. Anything not d
 3. **No secrets in git.** Connection strings with passwords and API keys go in `dotnet user-secrets`
    or environment variables. `appsettings.Development.json` may hold LocalDB/trusted-connection defaults only.
 4. **Every non-obvious decision goes in `DECISIONS.md`**: the decision, the alternatives, the reason,
-   and the trade-off. Do this in the same change that makes the decision, not afterwards.
+   and the trade-off. Do this in the same change that makes the decision, not afterwards, using the
+   `record-decision` skill. Do it without being asked.
 
 ## 2. Domain model and rules (current understanding — refine in DECISIONS.md)
 
@@ -123,8 +124,8 @@ Docker SQL Server is an optional alternative, and the README must cover both.
   steps, risks/edge cases, test plan). Get approval, then build. Update the plan's status when done.
 - **Small, focused commits** with clear messages (`feat(api): ...`, `fix(ui): ...`, `test: ...`,
   `docs: ...`). The commit history is graded: no huge "everything" commits.
-- Before saying a task is done: backend `dotnet build` + `dotnet test`; frontend `npm run build` + `npm run lint`.
-  Report failures honestly.
+- Before saying a task is done, run the `verify` skill (backend build + tests, frontend build + lint,
+  clock guard). Report failures honestly.
 - **Record Claude Code corrections**: when the user corrects Claude or Claude's output had to be
   fixed, add a short entry to `docs/claude-worklog.md` (what was asked, what went wrong, how it was fixed).
   This shows where the tool helped and where it needed fixing, and is part of the deliverable.
@@ -141,3 +142,13 @@ Docker SQL Server is an optional alternative, and the README must cover both.
 
 Shared rules for all agents: follow this file, stay in your own area, and hand off across areas by
 describing the needed change (endpoint contract, schema change) instead of making it yourself.
+Every agent preloads the three skills below. When agents run in parallel, they put proposed
+DECISIONS.md entries in their reports and the main session applies them, so the file is never edited by two agents at once.
+
+## 8. Skills (in `.claude/skills/`)
+
+| Skill | When to use it |
+|---|---|
+| `record-decision` | **Automatically**, in the same change, whenever a choice between alternatives is made, an edge case's behavior is decided, scope is cut, or a limitation is accepted. It writes to `DECISIONS.md` in a fixed format. |
+| `verify` | Before calling any task done and before every commit. `pwsh -NoProfile -File .claude/skills/verify/verify.ps1 [-Scope backend\|frontend]`. Includes the **clock guard**, which fails on local-clock APIs unless the line is marked `clock-ok: <reason>`. |
+| `zurich-time-cases` | Before writing or reviewing anything involving punch times, durations, grouping, display, or the time provider. It holds the verified DST instants and the T1–T13 test matrix. |
