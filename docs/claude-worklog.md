@@ -110,3 +110,16 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** `AppExceptionMiddleware`, just inside `UseExceptionHandler`, catches `AppException` and delegates to the same
   `AppExceptionHandler` (D-038). The QA test is un-skipped; `ErrorLoggingTests` adds a no-database check that a real
   exception still logs at Error and that 404 pages and the no-cache header are unchanged.
+
+## 2026-11-18 — qa tests failed only in the exotic-culture CI run (culture-sensitive string asserts)
+
+- **Asked:** Phase 3 step 5, qa slice A (74 new tests). They passed in the normal run and on the dev machine.
+- **What went wrong:** The second CI run (`TZ=Pacific/Kiritimati`, culture `th-TH`, E16) failed 2 of them.
+  (1) xUnit's `Assert.DoesNotContain(string, string)` compares with the CURRENT CULTURE, and under Thai collation
+  `"   at "` (the stack-trace check) matched inside an ordinary 405 body. (2) A test looked for alice's shift id plus a comma
+  in bob's response; with id `5` that matched `"status":405,`, so it depended on the database identity value.
+  The main session also pushed the test commit (`f4e61f9`) without waiting for CI, so CI was red on two commits in a row.
+- **Found by:** the E16 CI run, which exists for exactly this. Reproduced locally with the same env vars.
+- **Fix:** ordinal comparisons in the new string assertions; the id check now asserts that bob's refusal has no `shiftId` /
+  `clockIn` property (parsed JSON, not a substring). The whole suite passes under the exotic settings.
+  Process fix: wait for the CI result after every push before starting the next task.

@@ -42,7 +42,7 @@ public sealed class ErrorLoggingTests
     {
         var (response, _) = await GetAsync("/test-only/app-error");
 
-        Assert.Contains("no-cache", response.Headers.CacheControl?.ToString());
+        Assert.Contains("no-cache", response.Headers.CacheControl?.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

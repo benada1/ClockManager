@@ -127,7 +127,9 @@ public sealed class PunchQaKeyTests(MigratedDatabaseFixture database) : IClassFi
 
         Assert.Equal(HttpStatusCode.Conflict, bobs.Status);
         Assert.Equal(ErrorCodes.ShiftNotOpen, bobs.Body.GetProperty("code").GetString());
-        Assert.DoesNotContain(alices.Body.GetProperty("shiftId").GetInt64().ToString() + ",", bobs.Text);
+        // Parsed, not a substring search: "5," also matches `"status":405,`. Bob's refusal must not carry a shift at all.
+        Assert.False(bobs.Body.TryGetProperty("shiftId", out _), bobs.Text);
+        Assert.False(bobs.Body.TryGetProperty("clockIn", out _), bobs.Text);
         Assert.Equal(0, await CountRecordsAsync(bobId));
     }
 

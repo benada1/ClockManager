@@ -278,8 +278,8 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
             var text = await response.Content.ReadAsStringAsync();
 
             Assert.True((int)response.StatusCode is 404 or 405, $"{method} {url} → {(int)response.StatusCode}");
-            Assert.DoesNotContain("   at ", text);
-            Assert.DoesNotContain("Exception", text);
+            Assert.False(text.Contains("   at ", StringComparison.Ordinal), $"{method} {url}: {text}");
+            Assert.DoesNotContain("Exception", text, StringComparison.Ordinal);
             if (text.Length > 0) Assert.Equal("code", JsonDocument.Parse(text).RootElement.EnumerateObject().Single(p => p.Name == "code").Name);
         }
         Assert.Equal(0, clock.Calls);

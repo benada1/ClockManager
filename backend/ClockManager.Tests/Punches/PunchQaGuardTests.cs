@@ -40,7 +40,7 @@ public sealed class PunchQaGuardTests(MigratedDatabaseFixture database) : IClass
         Assert.Equal(HttpStatusCode.ServiceUnavailable, reply.Status);
         Assert.Equal(ErrorCodes.TimeWentBackwards, reply.Body.GetProperty("code").GetString());
         Assert.Equal(1, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId, openOnly: true));
-        Assert.DoesNotContain("InvalidOperation", reply.Text);
+        Assert.DoesNotContain("InvalidOperation", reply.Text, StringComparison.Ordinal);
     }
 
     [SqlServerFact]
