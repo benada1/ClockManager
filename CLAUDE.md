@@ -144,12 +144,17 @@ it locks `bin/`.
    The user reviews at the **end of each phase** (see master plan §5 "End-of-phase summary") and can
    ask for changes then. Those changes land as new commits (rule 4), not as rewritten ones.
 3. **Conventional Commits:** `feat(scope): ...`, `fix(scope): ...`, `test: ...`, `docs: ...`, `ci: ...`,
-   `build: ...`, `chore: ...`, `refactor: ...`. The subject says what the task achieves
-   (e.g. `feat(time): add external Zurich time provider with fallback and fail-closed handling`), and the
-   body explains why and references `D-NNN`. Never "WIP", "update files", "fix stuff".
+   `build: ...`, `chore: ...`, `refactor: ...`. Never "WIP", "update files", "fix stuff".
+   **Keep it short and readable by someone who doesn't know the code** (user correction, 2026-11-17):
+   - **Subject: at most ~50 characters**, plain words, no internal codes (`QA-13`, `E16`, `D-005`) and no
+     class/column names. Good: `fix(db): reject blank time-provider names`.
+     Bad: `fix(db): Claude's cross-check CHECK accepted a provider with a NULL delta (QA-12)`.
+   - **Body: 1–3 short lines** saying *why*, in plain language, then one `Refs: D-NNN, QA-NN` line if useful.
+     Details (column names, test names, counts) go in `DECISIONS.md` / the worklog, not in the commit.
+   - Correction commits say what was wrong in plain words, e.g. `fix(db): Claude allowed empty provider names`.
 4. **Corrections are separate, visible commits.** When the user rejects or fixes Claude's approach,
    that fix is its own commit saying what was wrong, e.g.
-   `fix(time): Claude parsed a local time without offset; use the UTC instant instead`.
+   `fix(time): Claude used local time, not UTC`.
    Also log it in the worklog and DECISIONS.md (see above).
 5. **Every commit builds and passes `verify`.** Keep the `Co-Authored-By` trailer.
 6. **Never rewrite pushed history** (no force-push, no squashing what's on `main`). Tidying unpushed,

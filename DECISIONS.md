@@ -302,7 +302,8 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-17 | Startup-validation tests from Phase 1 steps 1–2 | Racy under CPU load (`WebApplicationFactory` disposed the host first → `ObjectDisposedException`), so they could fail without a bug. Found by the qa agent in step 4 | `HostStartup` helper reads the host's startup log (D-018) | `b4fec47` |
 | 2026-11-17 | `/health/time` refresh runs on the app's stopping token | During shutdown the cancellation surfaced as an unhandled error: 500 `server.error` instead of 503. Found by the qa agent (QA-10) | The controller maps that cancellation to 503 `time.unavailable` | `6feb0bb` |
 | 2026-11-17 | `CK_Shifts_*CrossCheck` in the Phase 2 schema | `NULL >= 0` is UNKNOWN, so a cross-check provider with no delta passed the CHECK. Found by the qa agent (QA-12) | `AND [Delta] IS NOT NULL`, migration `FixCrossCheckNullDelta`; regression test `QA12_*` | `9d06246` |
-| 2026-11-17 | Provider columns in the Phase 2 schema were only `NOT NULL` | `''` or spaces passed, so a punch could name no time source, which `PunchStamp.From` refuses. Found by the qa agent (QA-13) | `LEN(LTRIM(RTRIM(...))) > 0` CHECKs, migration `ProviderNamesNotBlank`; regression tests `QA13_*` | this commit |
+| 2026-11-17 | Provider columns in the Phase 2 schema were only `NOT NULL` | `''` or spaces passed, so a punch could name no time source, which `PunchStamp.From` refuses. Found by the qa agent (QA-13) | `LEN(LTRIM(RTRIM(...))) > 0` CHECKs, migration `ProviderNamesNotBlank`; regression tests `QA13_*` | `cc9c0c9` |
+| 2026-11-17 | Commit subjects up to ~85 chars with internal codes; bodies of 10+ lines with column and test names | The user couldn't understand the history from the log | CLAUDE.md §6.1: subject ≤ ~50 chars in plain words, body 1–3 lines + `Refs:`; details live here and in the worklog. Pushed history is not rewritten (rule 6) | this commit |
 
 ## Known limitations
 

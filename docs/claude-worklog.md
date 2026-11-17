@@ -86,3 +86,14 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Found by:** the qa agent in Phase 2 step 2 (provider). The main session added the same test for `CrossCheckedBy`.
 - **Fix:** `LEN(LTRIM(RTRIM(col))) > 0` CHECKs for both punches, migration `ProviderNamesNotBlank`. The 6 `QA13_*` cases
   failed before the migration and pass after it.
+
+## 2026-11-17 — Commit messages were too long to read
+
+- **Asked:** The user read `git log` at the end of Phase 2.
+- **What went wrong:** Subjects ran up to ~85 characters and used internal codes (`QA-12`, `E16`) and SQL/class names;
+  bodies were 10+ lines of detail. The history couldn't be skimmed by someone who doesn't know the code.
+- **Fix:** CLAUDE.md §6.1 now limits the subject to ~50 characters in plain words and the body to 1–3 lines plus a
+  `Refs:` line; the details stay in DECISIONS.md and this worklog. Pushed commits are left as they are (no history rewrite).
+- **Also asked:** why migration files are named like `20261117172920_ProviderNamesNotBlank.cs`. That is EF Core's own
+  naming: the timestamp prefix is how EF orders migrations, and it is stored in the database's `__EFMigrationsHistory`
+  table, so renaming the files would break `dotnet ef database update`. The readable name is the part after the `_`.
