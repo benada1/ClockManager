@@ -11,6 +11,7 @@ Run the gate script from the repo root:
 pwsh -NoProfile -File .claude/skills/verify/verify.ps1              # everything
 pwsh -NoProfile -File .claude/skills/verify/verify.ps1 -Scope backend
 pwsh -NoProfile -File .claude/skills/verify/verify.ps1 -Scope frontend
+pwsh -NoProfile -File .claude/skills/verify/verify.ps1 -Scope clock     # clock guard only (used by CI)
 ```
 
 ## What it checks

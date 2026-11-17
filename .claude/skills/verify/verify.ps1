@@ -5,7 +5,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('all', 'backend', 'frontend')]
+    [ValidateSet('all', 'backend', 'frontend', 'clock')]
     [string]$Scope = 'all'
 )
 
