@@ -138,6 +138,13 @@ No API keys are needed. If neither gives a trustworthy answer, or they disagree 
 punch fails with **503** (`time.unavailable`, `time.invalid_response` or `time.providers_disagree`).
 There is no fallback to the server clock. Settings: section `TrustedClock` in `appsettings.json`.
 
+Connection warm-up (D-037): after startup the API makes one background request per provider, only to open
+the connection, so the first punch is not slow; the answer is thrown away and never used as a time.
+Keys: `TrustedClock:Warmup:Enabled` / `TimeoutMs`, and the pool settings under `TrustedClock:Connection`
+(`PooledConnectionLifetimeSeconds`, `PooledConnectionIdleTimeoutSeconds`, `ConnectTimeoutMs`,
+`KeepAlivePingDelaySeconds`, `KeepAlivePingTimeoutSeconds`). Set `TrustedClock:Warmup:Enabled=false` to run
+offline. The tests turn it off, so no test touches the network.
+
 - **`GET http://localhost:5258/health/time`** (all environments): 200 when a punch would get a time
   right now, 503 otherwise, with each provider's status code and round trip. Cached for 10 s (D-012).
 - **Time lab** (Development only, D-013): http://localhost:5173/#/time-lab with an "Ask both providers"

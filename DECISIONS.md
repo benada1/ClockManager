@@ -316,6 +316,15 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** The flag uses the cached instant without adding `ageMs`, so it lags by up to the TTL (10 s); the UI can also compute the age from `serverNow` and the open shift if it wants it sooner. A stale or cold cache with the providers down hides a forgotten clock-out until the providers return.
 - **Refs:** `Application/Status/StatusService.cs` · `ShiftFlags.IsForgotten` · `ForgottenClockOutRuleTests` · `StatusApiTests.P13_*`, `P20_*`, `The_last_closed_shift_is_the_one_with_the_latest_clock_out_*`
 
+### D-037 — Cold first provider call (QA-11): warm connection pool, one-shot startup warm-up that can never be a time
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** The first call per provider after a restart or an idle spell costs ~0.8-0.9 s (DNS + TCP + TLS) against 0.13-0.22 s warm (Phase 1 measurement). That punch gets `LowPrecision`, and in the worst case becomes single-source or a 503 (D-008, D-009, D-010).
+- **Options:** pool: (a) .NET defaults (idle timeout 100 s, no lifetime, no connect timeout, follows redirects) · (b) tuned `SocketsHttpHandler`. Warm-up: (i) none · (ii) one request per provider after startup · (iii) a periodic ping every few minutes · (iv) warm-up that reads the answer as a first time sample.
+- **Decision:** (b) + (ii), on the same named HttpClients the punch path uses, so the warm connection is the one a punch reuses. Defaults, all in `TrustedClock:Connection` (validated on start): `PooledConnectionLifetime` 300 s (DNS changes are picked up within 5 min), `PooledConnectionIdleTimeout` 300 s (a connection survives gaps between punches), `ConnectTimeout` 1500 ms and validated `< TimeoutMs` (a dead host fails at the TCP/TLS stage, not after the whole 3 s), `AllowAutoRedirect = false` (a time provider that redirects is suspicious; the answer is then an HTTP error, so fail closed), `EnableMultipleHttp2Connections = false` (one request at a time per provider; a second connection is another cold handshake). Keep-alive: HTTP/2 PING every 30 s, timeout 10 s, policy `Always` (also idle; 0 turns it off). The clients now allow HTTP/2 (`RequestVersionOrLower`) because the PING exists only there; ALPN falls back to 1.1. Warm-up (`ProviderWarmupService`, a `BackgroundService`, `TrustedClock:Warmup:Enabled` true, `TimeoutMs` 3000): after startup, in the background (`Task.Yield` first, so it never delays startup or readiness), one GET per provider in parallel, response drained into `Stream.Null`, one log line each with an outcome code only (`ok`, `http_500`, `timeout`, `failed`; Warning when not ok), every failure swallowed.
+- **Why it can never be a time source (rule 1 / D1):** it does not depend on `ITrustedClock`, `ITimeSource`, `ServerNowProvider` or `TimeHealthCheck`, keeps no instant, never reads the body, and feeds no cache; a test asserts its constructor and fields. A punch still asks both providers fresh. One-shot rather than periodic: the free providers are a shared resource and a ping every few minutes (~700 calls a day each) buys little; the HTTP/2 PINGs keep an idle connection alive without any API request. Periodic re-warming was not built (see trade-offs).
+- **Trade-offs:** The first punch still pays for TLS if it arrives before the warm-up finishes, if the provider or a middlebox closed the idle connection anyway (PING is only a hint to the server, and we do not know whether these providers speak HTTP/2), or after the 300 s lifetime. A DNS or TLS outage still gives low precision, a single-source punch or 503, as before (fail closed). Warm-up costs one extra call per provider per start. Tests turn it off (`NoNetworkByDefault`, env var) so no test host touches the network. **Not measured:** the effect on the real network (cold vs warm) was not measured in this change.
+- **Refs:** plans/03-punch-api.md §2 QA-11, step 4 · `Infrastructure/Time/ProviderWarmupService.cs`, `TrustedClockServiceCollectionExtensions.CreateHandler` · `ProviderWarmupTests`
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -427,11 +436,13 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 
 ## Known limitations
 
-- **The first provider call after a restart or an idle minute is slow (QA-11).** A cold DNS + TCP + TLS setup costs
-  ~0.8–0.9 s per provider (vs 0.13–0.22 s warm); end-to-end right after startup we measured ~2.5 s. That punch is still
-  correct, but it is flagged `LowPrecision`, and in the worst case it could become single-source or a 503. Planned
-  for Phase 3 (punch path): a startup warm-up whose result is never used for a record, and `SocketsHttpHandler`
-  pool settings (longer idle timeout, `PooledConnectionLifetime`, short `ConnectTimeout`, no redirects).
+- **The first provider call after a restart or an idle minute can still be slow (QA-11, mostly fixed by D-037).** A cold
+  DNS + TCP + TLS setup costs ~0.8–0.9 s per provider (vs 0.13–0.22 s warm); right after startup we measured ~2.5 s
+  end to end. Now fixed: a background warm-up opens one connection per provider after startup, and the pool keeps it
+  (300 s idle timeout, HTTP/2 keep-alive PINGs, 300 s lifetime). Remains: a punch that arrives before the warm-up has
+  finished, after the connection was closed (server-side idle close, lifetime, network change), or during a DNS/TLS
+  outage still pays the cold cost and is flagged `LowPrecision`, becomes single-source, or is a 503 (fail closed).
+  The improvement was not measured against the real network.
 
 - **A provider that answers with a WRONG time blocks all punches; a DEAD one does not.** If one provider is up but
   off by more than the tolerance, every punch fails with 503 `time.providers_disagree` (we can't tell which one is

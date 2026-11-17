@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using ClockManager.Api.Application.Time;
 using Microsoft.Extensions.Options;
@@ -24,8 +25,14 @@ public static class TrustedClockServiceCollectionExtensions
         services.AddSingleton(new ZurichTime(DateTimeZoneProviders.Tzdb));
         services.AddSingleton<IElapsedTimer, StopwatchElapsedTimer>();
 
-        services.AddHttpClient<TimeNowSource>((sp, client) => ConfigureClient(client, sp, TimeNowSource.ProviderName));
-        services.AddHttpClient<TimeApiIoSource>((sp, client) => ConfigureClient(client, sp, TimeApiIoSource.ProviderName));
+        // Explicit client names: the warm-up asks the factory for the same named client, so it shares the connection pool.
+        services.AddHttpClient<TimeNowSource>(TimeNowClientName, (sp, client) => ConfigureClient(client, sp, TimeNowSource.ProviderName))
+            .ConfigurePrimaryHttpMessageHandler(CreateHandler);
+        services.AddHttpClient<TimeApiIoSource>(TimeApiIoClientName, (sp, client) => ConfigureClient(client, sp, TimeApiIoSource.ProviderName))
+            .ConfigurePrimaryHttpMessageHandler(CreateHandler);
+
+        // QA-11: open the provider connections in the background after startup. It never produces a time (D-037).
+        services.AddHostedService<ProviderWarmupService>();
         services.AddTransient<ITimeSource>(sp => sp.GetRequiredService<TimeNowSource>());
         services.AddTransient<ITimeSource>(sp => sp.GetRequiredService<TimeApiIoSource>());
 
@@ -73,6 +80,34 @@ public static class TrustedClockServiceCollectionExtensions
         return services;
     }
 
+    internal const string TimeNowClientName = "time.now";
+    internal const string TimeApiIoClientName = "timeapi.io";
+
+    private static SocketsHttpHandler CreateHandler(IServiceProvider sp) =>
+        CreateHandler(sp.GetRequiredService<IOptions<TrustedClockOptions>>().Value.Connection);
+
+    /// <summary>The pool settings as a handler (internal so tests can inspect it; no network is used).</summary>
+    internal static SocketsHttpHandler CreateHandler(ProviderConnectionOptions c)
+    {
+        var handler = new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromSeconds(c.PooledConnectionLifetimeSeconds),
+            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(c.PooledConnectionIdleTimeoutSeconds),
+            ConnectTimeout = TimeSpan.FromMilliseconds(c.ConnectTimeoutMs),
+            // A time provider that redirects is suspicious (and the target would not be the configured host).
+            AllowAutoRedirect = false,
+            // One request at a time per provider: a second HTTP/2 connection would only add another cold handshake.
+            EnableMultipleHttp2Connections = false,
+        };
+        if (c.KeepAlivePingDelaySeconds > 0)
+        {
+            handler.KeepAlivePingDelay = TimeSpan.FromSeconds(c.KeepAlivePingDelaySeconds);
+            handler.KeepAlivePingTimeout = TimeSpan.FromSeconds(c.KeepAlivePingTimeoutSeconds);
+            handler.KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always; // also while idle: that is the point
+        }
+        return handler;
+    }
+
     private static ITimeSource SourceNamed(IEnumerable<ITimeSource> sources, string name) =>
         sources.SingleOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal))
         ?? throw new InvalidOperationException($"No time source named '{name}' (options validation should have rejected it).");
@@ -84,6 +119,9 @@ public static class TrustedClockServiceCollectionExtensions
         // The real per-request timeout is the CancellationTokenSource in HttpTimeSource. This is only a backstop
         // so a bug there can never leave a request hanging for HttpClient's default 100 s.
         client.Timeout = TimeSpan.FromMilliseconds(options.TimeoutMs + 1000);
+        // Allow HTTP/2 (negotiated by ALPN, falls back to 1.1): only HTTP/2 has the keep-alive PING.
+        client.DefaultRequestVersion = HttpVersion.Version20;
+        client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("ClockManager", "1.0"));
     }

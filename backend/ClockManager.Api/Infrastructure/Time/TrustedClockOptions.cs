@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Options;
 
 namespace ClockManager.Api.Infrastructure.Time;
 
@@ -25,6 +26,14 @@ public sealed class TrustedClockOptions : IValidatableObject
     [Range(100, 10_000)]
     public int LowPrecisionThresholdMs { get; set; } = 1500;
 
+    /// <summary>Connection-pool settings of the two provider clients (QA-11, D-037).</summary>
+    [ValidateObjectMembers]
+    public ProviderConnectionOptions Connection { get; set; } = new();
+
+    /// <summary>Startup connection warm-up (QA-11, D-037). Opens connections only; never yields a time.</summary>
+    [ValidateObjectMembers]
+    public ProviderWarmupOptions Warmup { get; set; } = new();
+
     [Required]
     public TimeProviderEndpoint? Primary { get; set; }
 
@@ -38,6 +47,13 @@ public sealed class TrustedClockOptions : IValidatableObject
             yield return new ValidationResult(
                 $"{nameof(LowPrecisionThresholdMs)} ({LowPrecisionThresholdMs}) must be less than {nameof(TimeoutMs)} ({TimeoutMs}).",
                 [nameof(LowPrecisionThresholdMs), nameof(TimeoutMs)]);
+        }
+
+        if (Connection.ConnectTimeoutMs >= TimeoutMs)
+        {
+            yield return new ValidationResult(
+                $"Connection.{nameof(ProviderConnectionOptions.ConnectTimeoutMs)} ({Connection.ConnectTimeoutMs}) must be less than {nameof(TimeoutMs)} ({TimeoutMs}).",
+                ["Connection.ConnectTimeoutMs", nameof(TimeoutMs)]);
         }
 
         foreach (var (label, endpoint) in new[] { (nameof(Primary), Primary), (nameof(Secondary), Secondary) })
@@ -54,6 +70,43 @@ public sealed class TrustedClockOptions : IValidatableObject
                 [nameof(Primary), nameof(Secondary)]);
         }
     }
+}
+
+/// <summary>
+/// <c>SocketsHttpHandler</c> pool settings for the provider clients (QA-11). The defaults keep a warm connection
+/// between punches without pinning DNS forever. A ping delay of 0 turns keep-alive pings off.
+/// </summary>
+public sealed class ProviderConnectionOptions
+{
+    /// <summary>A pooled connection is replaced after this long, so DNS changes are picked up.</summary>
+    [Range(30, 3600)]
+    public int PooledConnectionLifetimeSeconds { get; set; } = 300;
+
+    /// <summary>An idle pooled connection is closed after this long (the .NET default is 100 s).</summary>
+    [Range(10, 3600)]
+    public int PooledConnectionIdleTimeoutSeconds { get; set; } = 300;
+
+    /// <summary>TCP + TLS setup limit. Must be below <c>TimeoutMs</c>, so a dead host fails before the whole budget is gone.</summary>
+    [Range(100, 10_000)]
+    public int ConnectTimeoutMs { get; set; } = 1500;
+
+    /// <summary>HTTP/2 PING every this many seconds, also on an idle connection. 0 = off.</summary>
+    [Range(0, 600)]
+    public int KeepAlivePingDelaySeconds { get; set; } = 30;
+
+    /// <summary>A PING unanswered for this long closes the connection.</summary>
+    [Range(1, 60)]
+    public int KeepAlivePingTimeoutSeconds { get; set; } = 10;
+}
+
+/// <summary>Startup warm-up (QA-11): one request per provider, only to open the connection, in the background.</summary>
+public sealed class ProviderWarmupOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Per-provider limit for the warm-up request.</summary>
+    [Range(500, 10_000)]
+    public int TimeoutMs { get; set; } = 3000;
 }
 
 /// <summary>One role (primary or secondary): which built-in provider plays it, and that provider's base URL.</summary>
