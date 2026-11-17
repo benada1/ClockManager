@@ -116,6 +116,30 @@ Each one gets: how it's handled → which test proves it → a DECISIONS.md entr
 Each phase = its own plan file, small commits, `/verify` before each commit, decisions recorded as
 they're made, corrections logged in `docs/claude-worklog.md`.
 
+### Who builds what
+
+No single agent builds everything. The **main Claude Code session is the coordinator**: it writes
+the phase plan, gets approval, sends each step to the agent that owns that area, checks the result
+with `/verify`, and makes the commit. Subagents don't call each other, so every hand-off between
+areas goes through the main session as a written contract (endpoint shape, schema change, failing test).
+
+| Phase | Lead agent | Supporting agents | Hand-off out of the phase |
+|---|---|---|---|
+| 0 Foundations | main session | backend (test project, middleware) | Agent files, solution, CI green |
+| 1 Trusted clock | **backend** | qa (provider-failure tests) | `ITrustedClock` + `TrustedInstant` contract |
+| 2 Schema | **db** | qa (constraint tests) | Entities, migration, seed data, fixture |
+| 3 Punch API | **backend** | db (index/transaction review), qa (race + replay tests) | OpenAPI contract for `/api/punches`, `/api/me/status` |
+| 4 Auth | **backend** | db (`Employee` credentials column), qa | Login/logout contract, roles |
+| 5 Punch UI | **frontend** | qa (two-tab, offline, 503 repro steps) | Working punch screen against the real API |
+| 6 History | **backend** (query + totals) → **frontend** (week view) | db (indexes for date-range queries), qa (DST/year-boundary tests) | `/api/me/shifts` contract |
+| 7 Manager | **backend** → **frontend** | db (`ShiftCorrection`, rowversion), qa (audit + conflict tests) | Corrections contract |
+| 8 QA pass | **qa** | backend / frontend / db fix their own findings | Failing tests → fixes, each with a test |
+| 9 Polish | main session | all (each checks its own area in README/DECISIONS) | Release-ready repo |
+
+The flow for a feature that spans areas (e.g. Phase 3): **db** confirms the schema supports it →
+**qa** writes the failing tests from the plan's test list → **backend** makes them pass → the main
+session runs `/verify` and commits. The qa agent writes tests but never changes production code.
+
 ### Phase 0 — Project foundations
 - [ ] Create `docs/claude-worklog.md`, `DECISIONS.md` skeleton (sections: Decisions, Edge cases, Not done, Known limits).
 - [ ] Add `.claude/agents/` — `backend.md`, `frontend.md`, `db.md`, `qa.md` (scope, rules, hand-off format).
