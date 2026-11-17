@@ -133,13 +133,13 @@ Docker SQL Server is an optional alternative, and the README must cover both.
 ### 6.1 Commit convention
 
 1. **One commit = one task, not one file.** A task that touches several files (code + its tests +
-   its config + its DECISIONS/README update) is **one** commit, reviewed as a whole. A phase normally
+   its config + its DECISIONS/README update) is **one** commit. A phase normally
    lands as a handful of commits (one per plan step), never one per file or per tiny tweak.
    No "everything" commits either: two unrelated tasks are two commits.
-2. **The user reviews every commit before it lands.** Claude never commits on its own initiative.
-   It stops, shows the proposed commit (message, files grouped by purpose, a short "what and why"
-   per file, and the `verify` summary), and waits for approval. If the user asks for changes, apply them
-   and show the commit again.
+2. **Claude commits and pushes each task itself** once Claude has reviewed the diff and `verify` passes,
+   then keeps working without waiting. Plans still need the user's approval before the build starts.
+   The user reviews at the **end of each phase** (see master plan §5 "End-of-phase summary") and can
+   ask for changes then. Those changes land as new commits (rule 4), not as rewritten ones.
 3. **Conventional Commits:** `feat(scope): ...`, `fix(scope): ...`, `test: ...`, `docs: ...`, `ci: ...`,
    `build: ...`, `chore: ...`, `refactor: ...`. The subject says what the task achieves
    (e.g. `feat(time): add external Zurich time provider with fallback and fail-closed handling`), and the
