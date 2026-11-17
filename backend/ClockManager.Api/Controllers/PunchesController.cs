@@ -11,7 +11,6 @@ namespace ClockManager.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/punches")]
-[Produces("application/json")]
 public sealed class PunchesController(PunchService punches) : ControllerBase
 {
     public const string IdempotencyKeyHeader = "Idempotency-Key";
@@ -20,13 +19,13 @@ public sealed class PunchesController(PunchService punches) : ControllerBase
     /// <param name="idempotencyKey">Required: a new UUID per punch, the same one on a retry.</param>
     [HttpPost]
     [Consumes("application/json")]
-    [ProducesResponseType<ShiftView>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType<ShiftView>(StatusCodes.Status201Created, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
     public async Task<ActionResult<ShiftView>> Punch(
         [FromBody] PunchRequest request,
         [FromHeader(Name = IdempotencyKeyHeader)] string? idempotencyKey,

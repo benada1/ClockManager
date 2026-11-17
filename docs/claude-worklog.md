@@ -123,3 +123,14 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** ordinal comparisons in the new string assertions; the id check now asserts that bob's refusal has no `shiftId` /
   `clockIn` property (parsed JSON, not a substring). The whole suite passes under the exotic settings.
   Process fix: wait for the CI result after every push before starting the next task.
+
+## 2026-11-18 — error responses were application/json instead of application/problem+json (QA-18)
+
+- **Asked:** Phase 3 step 1, the punch endpoint, with RFC 7807 ProblemDetails for every error (CLAUDE.md).
+- **What went wrong:** Claude put `[Produces("application/json")]` on the controller (and copied it to the status controller).
+  That attribute decides the Content-Type of every `ObjectResult`, including the ProblemDetails for 400/409/422, so the bodies
+  were right but the media type was not `application/problem+json`. Claude had asserted status codes and body fields only.
+- **Found by:** the qa agent in Phase 3 (QA-18), as a skipped known-bug test.
+- **Fix:** removed the controller-level attribute; the media type is declared on each `[ProducesResponseType]`
+  (success `application/json`, errors `application/problem+json`), so Swagger still documents both (D-039). The test is
+  un-skipped and now checks 400/401/403/409/415/422/503 plus the framework 404/405 and the status endpoint's 401.

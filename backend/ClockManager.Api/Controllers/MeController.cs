@@ -9,7 +9,6 @@ namespace ClockManager.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/me")]
-[Produces("application/json")]
 public sealed class MeController(StatusService status) : ControllerBase
 {
     /// <summary>
@@ -17,8 +16,8 @@ public sealed class MeController(StatusService status) : ControllerBase
     /// </summary>
     [HttpGet("status")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)] // per-employee, changes with every punch
-    [ProducesResponseType<StatusView>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<StatusView>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     public async Task<ActionResult<StatusView>> GetStatus(CancellationToken ct) => await status.GetAsync(ct);
 }

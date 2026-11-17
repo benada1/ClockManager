@@ -285,20 +285,56 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
         Assert.Equal(0, clock.Calls);
     }
 
-    [SqlServerFact(Skip = "QA-18 open: error responses are Content-Type application/json (controller [Produces] overrides it), not application/problem+json (RFC 7807). Expected: application/problem+json.")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task Error_responses_use_the_problem_json_media_type()
     {
         var clock = new FakeTrustedClock(FakeNow);
         await using var factory = new PunchApiFactory(database, clock);
         using var client = factory.CreateClient();
         var (_, user) = await AddEmployeeAsync();
+        string inactive;
+        await using (var db = database.CreateContext())
+        {
+            var employee = NewEmployee();
+            db.Employees.Add(employee);
+            db.Entry(employee).Property(e => e.IsActive).CurrentValue = false;
+            await db.SaveChangesAsync();
+            inactive = employee.Username;
+        }
+        const string Problem = "application/problem+json";
 
-        var bad = await SendAsync(client, "{}", user);
-        var conflict = await SendAsync(client, """{"intent":"clock-out"}""", user);
+        var created = await SendAsync(client, """{"intent":"clock-in"}""", user);
+        var replies = new Dictionary<string, Reply>
+        {
+            ["400"] = await SendAsync(client, "{}", user),
+            ["401"] = await SendAsync(client, """{"intent":"clock-in"}""", null),
+            ["403"] = await SendAsync(client, """{"intent":"clock-in"}""", inactive),
+            ["409"] = await SendAsync(client, """{"intent":"clock-in"}""", user),
+            ["415"] = await SendAsync(client, "intent=clock-in", user, contentType: "text/plain"),
+        };
+        var key = Guid.NewGuid().ToString();
+        clock.Set("2026-01-12T15:30:00Z");
+        await SendAsync(client, """{"intent":"clock-out"}""", user, key);
+        replies["422"] = await SendAsync(client, """{"intent":"clock-in"}""", user, key);
+        clock.FailWith(FakeTrustedClock.Unavailable());
+        replies["503"] = await SendAsync(client, """{"intent":"clock-in"}""", user);
 
-        Assert.Equal("application/problem+json", bad.ContentType);
-        Assert.Equal("application/problem+json", conflict.ContentType);
+        using var notFound = await client.GetAsync("/api/punches/nope");
+        using var notAllowed = await client.PutAsync("/api/punches", new StringContent("{}", Encoding.UTF8, "application/json"));
+        using var me401 = await client.GetAsync("/api/me/status");
+
+        Assert.Equal("application/json", created.ContentType); // success stays plain JSON
+        foreach (var (status, reply) in replies)
+        {
+            Assert.Equal(status, ((int)reply.Status).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(Problem, reply.ContentType);
+        }
+        Assert.Equal(HttpStatusCode.NotFound, notFound.StatusCode);
+        Assert.Equal(Problem, notFound.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, notAllowed.StatusCode);
+        Assert.Equal(Problem, notAllowed.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.Unauthorized, me401.StatusCode);
+        Assert.Equal(Problem, me401.Content.Headers.ContentType?.MediaType);
     }
 
     [SqlServerTheory(Skip = "QA-19 open: 400 bodies echo System.Text.Json internals (CLR type names like ClockManager.Api.Application.Punches.PunchRequest / System.String, 'LineNumber | BytePositionInLine') and a 'request field is required' noise entry. Expected: only stable, client-facing messages.")]
@@ -364,7 +400,7 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
     private static void AssertProblem(Reply reply, HttpStatusCode status, string code)
     {
         Assert.Equal(status, reply.Status);
-        Assert.Contains(reply.ContentType, new[] { "application/json", "application/problem+json" }); // QA-18: today json
+        Assert.Equal("application/problem+json", reply.ContentType);
         Assert.Equal(code, reply.Body.GetProperty("code").GetString());
         Assert.True(reply.Body.TryGetProperty("traceId", out _));
         AssertNoLeak(reply);

@@ -334,6 +334,15 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** One more middleware in the pipeline (an extra try/catch frame, no cost on the success path). The "reset the response" lines copy what the framework does and must be kept in step by hand. A real unexpected exception is still logged at Error twice (the framework's entry plus the handler's `LogError`); that was already so and was not changed here.
 - **Refs:** `Common/Errors/ProblemDetailsSetup.cs` · `PunchQaLogTests.A_handled_business_refusal_does_not_log_at_Error`, `A_real_500_does_log_at_Error_so_the_alert_still_works` · `ErrorLoggingTests`
 
+### D-039 — Error media type: declare `application/problem+json` on the error responses, no `[Produces]` on the controller (QA-18)
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Context:** `[Produces("application/json")]` on `PunchesController` and `MeController` forced every error body (400, 401, 403, 409, 415, 422, 503) to `Content-Type: application/json`. CLAUDE.md requires RFC 7807, whose media type is `application/problem+json`; a client that switches on the media type could not tell a problem from a success body.
+- **Options:** (a) drop the controller-level `[Produces]` and name the media type on each `[ProducesResponseType]` (`application/json` for the success body, `application/problem+json` for `ProblemDetails`) · (b) `[Produces("application/json", "application/problem+json")]` · (c) a global result filter that rewrites the Content-Type of every error response.
+- **Decision:** (a) on `PunchesController` and `MeController`. `TimeHealthController` and the dev `TimeLabController` keep `[Produces]`: their bodies are never ProblemDetails (the 503 health report is a `TimeHealthReport`).
+- **Why:** (b) still negotiates the first type for every `ObjectResult`, so errors stay `application/json`; (c) is global magic that rewrites headers after the fact and hides the real cause. (a) is declarative, and Swagger documents the right type per status for free.
+- **Trade-offs:** A new controller must remember to declare the media type on its error responses; `PunchQaBodyTests.Error_responses_use_the_problem_json_media_type` checks the real Content-Type for 400/401/403/409/415/422/503 and the framework 404/405, and would catch a new `[Produces]`.
+- **Refs:** RFC 7807 · `Controllers/PunchesController.cs`, `Controllers/MeController.cs` · `PunchQaBodyTests.Error_responses_use_the_problem_json_media_type`
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -421,7 +430,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Several closed shifts: which is "last"? | The latest clock-out, not the latest clock-in (D-036) | `StatusApiTests.The_last_closed_shift_is_the_one_with_the_latest_clock_out_*` |
 | Zurich time string when the offset has zero minutes | Always `+01:00` / `+02:00` (NodaTime's `ExtendedIso` would write `+01`) | `PunchRulesTests.Normal_day_shift_*` |
 | Duplicate `intent` member in the JSON body | Last member wins (System.Text.Json default) and the stored idempotency Intent matches it; ambiguous for a gateway that reads the first | `PunchQaBodyTests.Duplicate_intent_members_*` (QA-17, open) |
-| Error responses' media type | `application/json`, not `application/problem+json` (the `[Produces]` filter); the body shape is right | `PunchQaBodyTests.Error_responses_use_the_problem_json_media_type` (QA-18, open) |
+| Error responses' media type | Every error is `application/problem+json` (400/401/403/409/415/422/503 and the framework 404/405); success stays `application/json` (D-039) | `PunchQaBodyTests.Error_responses_use_the_problem_json_media_type` (QA-18) |
 | 400 for malformed JSON | Status and `code` are stable, but `errors` echoes System.Text.Json messages and CLR type names | `PunchQaBodyTests.Bad_body_400_does_not_expose_*` (QA-19, open) |
 | Handled refusal logging | The app logs 4xx at Information and 5xx at Warning; `AppExceptionMiddleware` takes `AppException` before the .NET 8 `ExceptionHandlerMiddleware`, so no Error per refusal; a real 500 still logs at Error | `PunchQaLogTests.A_handled_business_refusal_does_not_log_at_Error`, `ErrorLoggingTests` (QA-20, handled, D-038) |
 | Trusted instant less than 100 ns after the last punch | Passes the ns guard, is stored equal, and the DB CHECK fails: 500. Unreachable with millisecond providers | `PunchQaGuardTests.Clock_out_less_than_one_database_tick_*` (QA-21, open) |
@@ -456,6 +465,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-17 | Commit subjects up to ~85 chars with internal codes; bodies of 10+ lines with column and test names | The user couldn't understand the history from the log | CLAUDE.md §6.1: subject ≤ ~50 chars in plain words, body 1–3 lines + `Refs:`; details live here and in the worklog. Pushed history is not rewritten (rule 6) | this commit |
 | 2026-11-18 | Phase 1 exception handling used `UseExceptionHandler` + `IExceptionHandler` and assumed our handler was the only logger | On .NET 8 the framework middleware logs every exception at Error before our handler runs, so every double click or provider outage logged an Error. Found by the qa agent (QA-20) | `AppExceptionMiddleware` handles `AppException` first (D-038); the QA-20 test is un-skipped | `this commit` |
 | 2026-11-18 | qa slice A tests used culture-sensitive `Assert.DoesNotContain(string, string)` and a shift-id substring check | Failed only in the E16 run (`th-TH`): `"   at "` matched a normal 405 body, and id `5,` matched `"status":405,`. CI was red for two commits because the push was not followed by a CI check | Ordinal comparisons; parsed-JSON assertion; wait for CI after every push | this commit |
+| 2026-11-18 | Step 1 put `[Produces("application/json")]` on the punch controller (and later the status controller) | It overrode the media type of every error, so ProblemDetails went out as `application/json`, not RFC 7807 `application/problem+json`. Found by the qa agent (QA-18) | Removed the attribute; media types are declared per `[ProducesResponseType]` (D-039); the QA-18 test is un-skipped and covers every error status | this commit |
 
 ## Known limitations
 
