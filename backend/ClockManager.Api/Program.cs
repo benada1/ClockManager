@@ -1,3 +1,4 @@
+using ClockManager.Api.Application.Shifts;
 using ClockManager.Api.Common.Errors;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,6 +8,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddAppProblemDetails();
+
+builder.Services.AddOptions<ShiftRulesOptions>()
+    .BindConfiguration(ShiftRulesOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 var app = builder.Build();
 
