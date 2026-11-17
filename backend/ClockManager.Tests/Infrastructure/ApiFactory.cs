@@ -14,6 +14,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.UseNoDatabase();
         builder.ConfigureTestServices(services =>
             services.AddControllers().AddApplicationPart(typeof(TestOnlyController).Assembly));
     }

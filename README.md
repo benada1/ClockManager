@@ -4,6 +4,9 @@ Employee time clock (Clock In / Clock Out). ASP.NET Core + SQL Server + React.
 
 ## Run locally
 
+Set up the database first (next section). In Development the backend applies migrations and seeds the
+demo employees on startup.
+
 Backend (http://localhost:5258, Swagger at /swagger):
 
     cd backend/ClockManager.Api
@@ -14,6 +17,62 @@ Frontend (http://localhost:5173, proxies /api to the backend):
     cd frontend
     npm install
     npm run dev
+
+## Database setup
+
+The API uses SQL Server through EF Core 8. The connection string is `ConnectionStrings:ClockManager`.
+Pick **one** of the three options below. Only the SQL Express default is committed, because it has no
+password. Any other server goes in user-secrets or an environment variable, **never** in a committed file.
+
+**1. SQL Server Express (default).** `appsettings.Development.json` already contains:
+
+    Server=.\SQLEXPRESS;Database=ClockManager;Integrated Security=true;TrustServerCertificate=true
+
+Check that the instance exists and is running (the service is `MSSQL$SQLEXPRESS`):
+
+    Get-Service 'MSSQL$*'
+    sqlcmd -S .\SQLEXPRESS -E -C -Q "SELECT @@SERVERNAME, @@VERSION"
+
+If your instance has a different name, override the connection string with user-secrets (see option 3).
+
+**2. LocalDB.** Install it with Visual Studio or the SQL Server Express installer ("LocalDB" feature), then:
+
+    sqllocaldb create MSSQLLocalDB      # skip if `sqllocaldb info` already lists it
+    sqllocaldb start MSSQLLocalDB
+    cd backend/ClockManager.Api
+    dotnet user-secrets set "ConnectionStrings:ClockManager" "Server=(localdb)\MSSQLLocalDB;Database=ClockManager;Integrated Security=true;TrustServerCertificate=true"
+
+**3. Docker** (SQL Server 2022 in a Linux container). Pick your own strong `sa` password and keep it
+out of git:
+
+    $env:MSSQL_SA_PASSWORD = 'choose-a-Str0ng-password!'   # this shell only
+    docker run -d --name clockmanager-sql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$env:MSSQL_SA_PASSWORD" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+    cd backend/ClockManager.Api
+    dotnet user-secrets set "ConnectionStrings:ClockManager" "Server=localhost,1433;Database=ClockManager;User Id=sa;Password=$env:MSSQL_SA_PASSWORD;TrustServerCertificate=true"
+
+**Create the schema.** Run this from the repo root. `dotnet-ef` is pinned in `.config/dotnet-tools.json`, so
+everyone uses the same version:
+
+    dotnet tool restore
+    dotnet ef database update --project backend/ClockManager.Api
+
+Starting the API in Development (`dotnet run`) does the same, then seeds 1 manager (`manager`) and
+3 employees (`alice`, `bob`, `carol`). Seeding is idempotent and adds no shifts. **Other environments never
+migrate themselves.** Set `ConnectionStrings__ClockManager` as an environment variable and run
+`dotnet ef database update` (or a migration bundle) as a deployment step. If the connection string is
+missing, the API refuses to start and says so.
+
+**Integration tests** run against a real SQL Server. Each test class gets its own throwaway database
+(`ClockManager_Test_<guid>`), built by the real migrations and dropped afterwards. They use
+`CLOCKMANAGER_TEST_SQL`, a server-level connection string with no database name, or
+`Server=.\SQLEXPRESS;Integrated Security=true;TrustServerCertificate=true` by default. The login must be able to
+create databases.
+
+    $env:CLOCKMANAGER_TEST_SQL = 'Server=(localdb)\MSSQLLocalDB;Integrated Security=true;TrustServerCertificate=true'
+    dotnet test backend/ClockManager.sln --filter Category=Integration
+
+If no server is reachable, the integration tests are **skipped** locally (the reason is shown), but with
+`CI=true` they **fail**.
 
 ## Tests and quality gate
 

@@ -22,6 +22,7 @@ internal sealed class FakeProvidersApiFactory(ITimeSource primary, ITimeSource s
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
+        builder.UseNoDatabase();
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<IElapsedTimer>(Timer);

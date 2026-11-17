@@ -1,6 +1,6 @@
 # 02 — Data model and database
 
-**Status:** Approved 2026-11-17 (Q1 SQL Express, Q2 tables move to Phases 3 and 7, Q3 punch columns on Shifts) · Step 1 in progress
+**Status:** Approved 2026-11-17 (Q1 SQL Express, Q2 tables move to Phases 3 and 7, Q3 punch columns on Shifts) · Step 1 done (schema, migration, seeder, 19 tests); step 2 (qa race + constraint tests, CI SQL) next
 **Lead agent:** db · **Supporting:** qa (constraint, race and precision tests), backend (consumes it in Phase 3)
 **Master plan refs:** D4, D5, D8 · §4 "Concurrency" · CLAUDE.md §2 (domain model), rule 2 (DB enforces the rules)
 

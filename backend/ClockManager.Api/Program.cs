@@ -1,6 +1,7 @@
 using ClockManager.Api.Application.Shifts;
 using ClockManager.Api.Common;
 using ClockManager.Api.Common.Errors;
+using ClockManager.Api.Infrastructure.Persistence;
 using ClockManager.Api.Infrastructure.Time;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,8 @@ if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddTimeLab();
 }
+
+builder.Services.AddPersistence();
 
 builder.Services.AddOptions<ShiftRulesOptions>()
     .BindConfiguration(ShiftRulesOptions.SectionName)
@@ -35,7 +38,10 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 
-app.Run();
+// Development only (and only with Database:MigrateAndSeedOnStartup): apply migrations, then seed demo employees.
+await app.InitializeDevelopmentDatabaseAsync();
+
+await app.RunAsync();
 
 /// <summary>Exposed so integration tests can use <c>WebApplicationFactory&lt;Program&gt;</c>.</summary>
 public partial class Program;

@@ -167,6 +167,57 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** Relies on the generic host logging the startup failure, which it always has.
 - **Refs:** `backend/ClockManager.Tests/Infrastructure/HostStartup.cs`
 
+### D-019 — SQL Server Express as the dev database (deviation from CLAUDE.md's LocalDB)
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** db
+- **Context:** LocalDB isn't installed on the dev machine; SQL Server 2025 Express runs as `.\SQLEXPRESS` (Windows auth, sysadmin); no Docker. Plan 02 Q1.
+- **Options:** (a) install LocalDB · (b) use the existing SQL Express · (c) Docker SQL Server.
+- **Decision:** (b). `appsettings.Development.json` holds a Windows-auth connection string (no password, allowed by rule 3). README documents LocalDB and Docker via user-secrets.
+- **Why:** Works now with no install; same engine family as CI's SQL Server 2022 container.
+- **Trade-offs:** Another instance name needs a user-secret override; 2025 locally vs 2022 in CI (only long-standing features used; CI is the referee).
+- **Refs:** plans/02-schema.md §3, §5 · README "Database setup"
+
+### D-020 — Punch evidence as owned `ClockIn_*` / `ClockOut_*` columns on `Shifts`, not a `Punches` table
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** db
+- **Options:** (a) EF owned type `PunchStamp` mapped twice onto `Shifts` · (b) a `Punches` table, one row per punch · (c) EF 8 complex types.
+- **Decision:** (a). ClockOut is an optional owned type: all 9 columns NULL = open shift. Plan 02 Q3.
+- **Why:** "One open shift" (filtered unique index) and "out after in" (CHECK) stay plain single-row SQL constraints; (b) would need triggers or app logic; (c) can't be optional in EF 8.
+- **Trade-offs:** A wide row (21 columns). EF can't model an index mixing owner and owned columns, so `IX_Shifts_EmployeeId_ClockIn_ZurichDate` is raw SQL in the migration, guarded by `ShiftSchemaTests`.
+- **Refs:** `Infrastructure/Persistence/Configurations/ShiftConfiguration.cs` · `Migrations/*_InitialSchema.cs`
+
+### D-021 — Instants as `datetimeoffset(7)` at +00:00, plus the Zurich offset and work date stored as seen
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** db
+- **Options:** (a) `datetime2(7)` UTC · (b) `datetimeoffset` holding the local Zurich offset · (c) `datetimeoffset` at +00:00 with offset (smallint minutes) and date in their own columns.
+- **Decision:** (c), enforced in SQL: `*UtcOffsetZero`, offset `IN (60,120)`, and `ZurichDate = CAST(SWITCHOFFSET(Utc, offset) AS date)` (catches a date computed in the server's zone). Precision 7: timeapi.io sends 100 ns.
+- **Why:** SQL compares `datetimeoffset` by instant; nobody reads a wall-clock time as the truth; stored offset and date keep reports stable if tz rules change.
+- **Trade-offs:** Sub-100 ns precision truncated (no provider sends it). No DB defaults on any time column.
+- **Refs:** `PunchRoundTripTests` (S9) · `NodaTimeConverters.cs`
+
+### D-022 — Three own NodaTime value converters instead of a NodaTime EF package
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** db
+- **Decision:** Instant ↔ DateTimeOffset (UTC), Offset ↔ smallint minutes, LocalDate ↔ DateOnly, via `ConfigureConventions`, instead of `SimplerSoftware.EntityFrameworkCore.SqlServer.NodaTime`.
+- **Why:** ~20 lines, no third-party dependency to keep in step with EF, plain SQL types.
+- **Trade-offs:** No server-side NodaTime methods in LINQ; Phase 6 filters on the stored `ClockIn_ZurichDate` or instant ranges.
+
+### D-023 — Migrate and seed on startup only in Development; fail fast without a connection string
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** db
+- **Options:** (a) migrate on startup everywhere · (b) never · (c) Development only, behind `Database:MigrateAndSeedOnStartup`.
+- **Decision:** (c). Production never migrates itself (`dotnet ef database update` or a bundle). A missing `ConnectionStrings:ClockManager` stops startup with a clear message. Seed: 1 manager + 3 employees, idempotent, **no shifts** (a seeded shift would be a record with a made-up time).
+- **Why:** Clone-and-run in dev without racing schema changes in production; test hosts turn the flag off and never touch the dev DB.
+- **Trade-offs:** No demo shifts until real punches exist (Phase 3).
+- **Refs:** `PersistenceExtensions.cs` · `DevelopmentSeederTests` (S11) · `NoDatabaseHostSettings.cs`
+
+### D-024 — Integration tests: one throwaway database per test class, built by the real migrations
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** tests
+- **Options:** (a) one shared test DB · (b) a DB per test · (c) a DB per test class · (d) Testcontainers (no Docker locally).
+- **Decision:** (c): `ClockManager_Test_<guid>` via `MigrateAsync`, dropped on dispose; stale ones (> 1 h) dropped at run start. Server from `CLOCKMANAGER_TEST_SQL` (default `.\SQLEXPRESS`). Unreachable → skipped locally with a reason, **failed** when `CI=true`.
+- **Why:** Isolation without a migration per test (~1–2 s per class), and the migrations themselves are tested.
+- **Trade-offs:** Tests in one class share a DB, so each creates its own employees.
+- **Refs:** `MigratedDatabaseFixture.cs` · `TestSqlServer.cs`
+
+### D-025 — `IdempotencyRecord` and `ShiftCorrection` tables move to Phases 3 and 7
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** db
+- **Decision:** Not in `InitialSchema`; each is designed with the feature that uses it and arrives in its own migration (plan 02 Q2). `PasswordHash` comes with Phase 4.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -208,6 +259,10 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Provider `detail`, raw body or parsed time in the public health check | Never included: names, outcome codes, RTTs, delta, code only | `TimeHealthEndpointTests.Never_exposes_provider_detail_payload_or_parsed_time` |
 | Time lab requested outside Development (Production, Staging, Testing) | 404; controller not discovered, `ITimeLab` not registered, no provider call | `TimeLabTests.Does_not_exist_outside_Development` |
 | Time lab when a punch would fail (disagree, all down) | Still 200; `decision.result = failed`, `code`, `httpStatus: 503` | `TimeLabTests.Development_returns_200_even_when_a_punch_would_get_503`, `Disagreement_is_a_failed_decision_*` |
+| Second open shift for one employee (two tabs / two servers) (S1) | The DB refuses it: `UX_Shifts_OneOpenPerEmployee`, SQL error 2601 | `ShiftConstraintTests.S1_*` |
+| Clock-out equal to (T11) or before (T10) clock-in (S5) | The DB refuses it: `CK_Shifts_ClockOutAfterClockIn`, SQL error 547; `Shift.Close` refuses it first | `ShiftConstraintTests.S5_*`, `PunchStampTests.Close_refuses_*` |
+| Repeated October hour (T6), DST-start instant (T7), µs / 100 ns instants (S9) | Stored as a UTC instant + the offset as seen; round-trips exactly | `PunchRoundTripTests.S9_*` |
+| Overnight (T3) / year-end (T8) shift: which work date? | The Zurich date of clock-in (2026-01-12; 2026-12-31), from tzdb, checked again in SQL | `PunchStampTests` · `CK_Shifts_ClockInZurichDate` |
 | `/health/time` during graceful shutdown (stopping token cancelled, client still connected) (QA-10) | 503 with `canPunch: false`, `code: time.unavailable`; was 500 `server.error`. A client that disconnects still gets no body | `TrustedClockStep4QaTests.QA10_health_time_during_shutdown_is_503_not_500_server_error` |
 | A provider throws instead of returning a result, seen from `/health/time` and the 503 body | Only the outcome code `error`, never exception text; the Time lab (dev only) shows the detail | `TrustedClockStep4QaTests.Health_time_shows_error_outcome_*`, `Punch_503_body_for_two_throwing_providers_has_no_exception_text` |
 | Server process in another time zone or culture (E16) | No effect: NodaTime tzdb + invariant parsing. Full suite identical under Pacific/Kiritimati + th-TH, Pacific/Pago_Pago + ar-SA, Asia/Kathmandu + fa-IR | `HostEnvironmentOverrideTests` (env `CLOCKMANAGER_TEST_TZ` / `CLOCKMANAGER_TEST_CULTURE`), CI run with `TZ` set |
