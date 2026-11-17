@@ -94,7 +94,7 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Shifts", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Shifts_ClockInCrossCheck", "([ClockIn_CrossCheckedBy] IS NULL AND [ClockIn_CrossCheckDeltaMs] IS NULL) OR ([ClockIn_CrossCheckedBy] IS NOT NULL AND [ClockIn_CrossCheckDeltaMs] >= 0)");
+                            t.HasCheckConstraint("CK_Shifts_ClockInCrossCheck", "([ClockIn_CrossCheckedBy] IS NULL AND [ClockIn_CrossCheckDeltaMs] IS NULL) OR ([ClockIn_CrossCheckedBy] IS NOT NULL AND [ClockIn_CrossCheckDeltaMs] IS NOT NULL AND [ClockIn_CrossCheckDeltaMs] >= 0)");
 
                             t.HasCheckConstraint("CK_Shifts_ClockInOffset", "[ClockIn_ZurichOffsetMinutes] IN (60, 120)");
 
@@ -108,7 +108,7 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Shifts_ClockOutComplete", "([ClockOut_Utc] IS NULL AND [ClockOut_ZurichOffsetMinutes] IS NULL AND [ClockOut_ZurichDate] IS NULL AND [ClockOut_Provider] IS NULL AND [ClockOut_RoundTripMs] IS NULL AND [ClockOut_CrossCheckedBy] IS NULL AND [ClockOut_CrossCheckDeltaMs] IS NULL AND [ClockOut_LowPrecision] IS NULL AND [ClockOut_RawPayload] IS NULL) OR ([ClockOut_Utc] IS NOT NULL AND [ClockOut_ZurichOffsetMinutes] IS NOT NULL AND [ClockOut_ZurichDate] IS NOT NULL AND [ClockOut_Provider] IS NOT NULL AND [ClockOut_RoundTripMs] IS NOT NULL AND [ClockOut_LowPrecision] IS NOT NULL AND [ClockOut_RawPayload] IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_Shifts_ClockOutCrossCheck", "([ClockOut_CrossCheckedBy] IS NULL AND [ClockOut_CrossCheckDeltaMs] IS NULL) OR ([ClockOut_CrossCheckedBy] IS NOT NULL AND [ClockOut_CrossCheckDeltaMs] >= 0)");
+                            t.HasCheckConstraint("CK_Shifts_ClockOutCrossCheck", "([ClockOut_CrossCheckedBy] IS NULL AND [ClockOut_CrossCheckDeltaMs] IS NULL) OR ([ClockOut_CrossCheckedBy] IS NOT NULL AND [ClockOut_CrossCheckDeltaMs] IS NOT NULL AND [ClockOut_CrossCheckDeltaMs] >= 0)");
 
                             t.HasCheckConstraint("CK_Shifts_ClockOutOffset", "[ClockOut_ZurichOffsetMinutes] IN (60, 120)");
 

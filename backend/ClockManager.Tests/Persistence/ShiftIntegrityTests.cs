@@ -314,10 +314,9 @@ public sealed class ShiftIntegrityTests(MigratedDatabaseFixture database) : ICla
         Assert.Contains($"CK_Shifts_{punch}CrossCheck", sql.Message);
     }
 
-    [Theory(Skip = "QA-12 open: CK_Shifts_*CrossCheck passes a NULL delta (NULL >= 0 is UNKNOWN). Fixed in the next fix(db) commit.")]
+    [SqlServerTheory]
     [InlineData("ClockIn")]
     [InlineData("ClockOut")]
-    [Trait("Status", "KnownBug")] // QA-12: CK_Shifts_*CrossCheck passes when the delta is NULL (NULL >= 0 is UNKNOWN).
     public async Task QA12_cross_checked_by_a_provider_with_a_NULL_delta_violates_the_cross_check(string punch)
     {
         // "Cross-checked by timeapi.io, delta unknown" is half the evidence D-009 asks for, and PunchStamp.From refuses

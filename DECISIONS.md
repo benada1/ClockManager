@@ -280,7 +280,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Two Clock Outs on one open shift (double click / two tabs) (S10) | `RowVersion`: one wins, the other gets `DbUpdateConcurrencyException`, the first value stays | `ShiftConcurrencyTests.S10_two_parallel_clock_outs_*`, `S10_stale_clock_out_*` |
 | Half-written Clock Out, either direction (S6) | `CK_Shifts_ClockOutComplete` refuses it, one test case per column; the optional cross-check pair may be null (D-009) | `ShiftIntegrityTests.S6_*` |
 | UTC date stored instead of the Zurich work date (T3 overnight, T8 year end) | `CK_Shifts_*ZurichDate` refuses it | `ShiftIntegrityTests.T3_*`, `T8_*` |
-| Cross-check provider stored with a NULL delta (QA-12) | Should be refused by `CK_Shifts_*CrossCheck`; accepted today because `NULL >= 0` is UNKNOWN | open (`ShiftIntegrityTests.QA12_*`, skipped until the fix) |
+| Cross-check provider stored with a NULL delta (QA-12) | `CK_Shifts_*CrossCheck` refuses it (SQL 547); the delta needs an explicit `IS NOT NULL`, since `NULL >= 0` is UNKNOWN and passes a CHECK | `ShiftIntegrityTests.QA12_*` |
 | Blank provider name in a stored punch (QA-13) | Should be refused by a CHECK; accepted today (NOT NULL only) | open (`ShiftIntegrityTests.QA13_*`, skipped until the fix) |
 
 ## Not done (out of scope)
@@ -301,6 +301,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-17 | `TimeNowSource` took its name from the `Primary` config slot | With the roles swapped, time.now readings would be credited to "timeapi.io" in the audit trail. Found by the qa agent (QA-03) while writing step-2 tests | Fixed name `TimeNowSource.ProviderName = "time.now"`; regression test `Name_is_always_time_now_even_when_it_plays_the_secondary_role_QA03` | `4544b1d` |
 | 2026-11-17 | Startup-validation tests from Phase 1 steps 1–2 | Racy under CPU load (`WebApplicationFactory` disposed the host first → `ObjectDisposedException`), so they could fail without a bug. Found by the qa agent in step 4 | `HostStartup` helper reads the host's startup log (D-018) | `b4fec47` |
 | 2026-11-17 | `/health/time` refresh runs on the app's stopping token | During shutdown the cancellation surfaced as an unhandled error: 500 `server.error` instead of 503. Found by the qa agent (QA-10) | The controller maps that cancellation to 503 `time.unavailable` | `6feb0bb` |
+| 2026-11-17 | `CK_Shifts_*CrossCheck` in the Phase 2 schema | `NULL >= 0` is UNKNOWN, so a cross-check provider with no delta passed the CHECK. Found by the qa agent (QA-12) | `AND [Delta] IS NOT NULL`, migration `FixCrossCheckNullDelta`; regression test `QA12_*` | this commit |
 
 ## Known limitations
 

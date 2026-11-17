@@ -42,9 +42,12 @@ internal sealed class ShiftConfiguration : IEntityTypeConfiguration<Shift>
                 t.HasCheckConstraint($"CK_Shifts_{punch}Offset", $"[{punch}_ZurichOffsetMinutes] IN (60, 120)");
                 t.HasCheckConstraint($"CK_Shifts_{punch}RoundTrip", $"[{punch}_RoundTripMs] >= 0");
                 t.HasCheckConstraint($"CK_Shifts_{punch}UtcOffsetZero", $"DATEPART(TZOFFSET, [{punch}_Utc]) = 0");
+                // Both set or both null. "IS NOT NULL" on the delta is needed: NULL >= 0 is UNKNOWN, and a CHECK only
+                // rejects FALSE, so without it "cross-checked by X, delta unknown" was stored (QA-12).
                 t.HasCheckConstraint($"CK_Shifts_{punch}CrossCheck",
                     $"([{punch}_CrossCheckedBy] IS NULL AND [{punch}_CrossCheckDeltaMs] IS NULL)"
-                    + $" OR ([{punch}_CrossCheckedBy] IS NOT NULL AND [{punch}_CrossCheckDeltaMs] >= 0)");
+                    + $" OR ([{punch}_CrossCheckedBy] IS NOT NULL AND [{punch}_CrossCheckDeltaMs] IS NOT NULL"
+                    + $" AND [{punch}_CrossCheckDeltaMs] >= 0)");
                 // The stored work date must be the date of the instant at the stored offset (catches a date computed
                 // from the server's local zone, or swapped columns). tzdb itself is checked in C# (PunchStamp.From).
                 t.HasCheckConstraint($"CK_Shifts_{punch}ZurichDate",

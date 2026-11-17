@@ -64,3 +64,15 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
   `WebApplicationFactory` could then throw `ObjectDisposedException` instead of the validation error.
 - **Fix:** A shared `HostStartup` helper also reads the host's "Hosting failed to start" log (D-018). 21 stress runs
   were clean afterwards. Production code was never wrong; the tests were.
+
+## 2026-11-17 — Cross-check CHECK constraint let a NULL delta through (QA-12)
+
+- **Asked:** Phase 2 step 1 (db agent): `CK_Shifts_*CrossCheck`, "cross-check provider and delta are both set or both null".
+- **What went wrong:** The second branch was `[By] IS NOT NULL AND [Delta] >= 0`. With the delta NULL, `NULL >= 0` is
+  UNKNOWN, and SQL Server only rejects a row when a CHECK is FALSE. So "cross-checked by timeapi.io, delta unknown" could
+  be stored, although the code comment and `PunchStamp.From` both say it must be refused. The step-1 tests only tried
+  "delta set, provider null", not the other direction.
+- **Found by:** the qa agent in Phase 2 step 2 (raw-SQL row writer, one column changed per test).
+- **Fix:** `AND [Delta] IS NOT NULL` in the CHECK, new migration `FixCrossCheckNullDelta`. The regression test
+  `QA12_cross_checked_by_a_provider_with_a_NULL_delta_violates_the_cross_check` failed before (row stored) and passes after.
+  Lesson recorded for later constraints: in a CHECK, every comparison on a nullable column needs an explicit `IS NOT NULL`.
