@@ -116,6 +116,15 @@ Each one gets: how it's handled → which test proves it → a DECISIONS.md entr
 Each phase = its own plan file, small commits, `/verify` before each commit, decisions recorded as
 they're made, corrections logged in `docs/claude-worklog.md`.
 
+**Every phase ends with a knowledge check** (the developer must be able to explain all the code):
+1. Claude walks through what was built, quoting the key lines of code in plain language.
+2. Claude quizzes the developer on the phase, grades the answers honestly, explains the gaps, and re-tests them.
+3. Claude updates `STUDY-NOTES.md` (repo root, **local only**: listed in `.git/info/exclude`, never committed)
+   with a section for the phase: the key code explained, the quiz questions with answers, and new "learn before
+   the test" items.
+
+A phase is not marked done until its knowledge check is complete.
+
 ### Who builds what
 
 No single agent builds everything. The **main Claude Code session is the coordinator**: it writes
