@@ -90,8 +90,11 @@ cd frontend; npm install; npm run dev
 npm run build   # must pass before you call frontend work done
 npm run lint    # oxlint, must be clean
 ```
-The dev machine is Windows (PowerShell). The default DB is SQL Server LocalDB `(localdb)\MSSQLLocalDB`.
-Docker SQL Server is an optional alternative, and the README must cover both.
+The dev machine is Windows (PowerShell). The default dev DB is **SQL Server Express `.\SQLEXPRESS`**
+(Windows auth; LocalDB is not installed on the dev machine, see plans/02-schema.md). LocalDB and Docker
+SQL Server are documented alternatives, and the README must cover all three. Integration tests read
+`CLOCKMANAGER_TEST_SQL` (default `.\SQLEXPRESS`). Stop any running `dotnet run` before building or testing:
+it locks `bin/`.
 
 ## 5. Coding conventions
 
