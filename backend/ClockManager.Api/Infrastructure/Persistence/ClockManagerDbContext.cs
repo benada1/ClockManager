@@ -14,6 +14,8 @@ public sealed class ClockManagerDbContext(DbContextOptions<ClockManagerDbContext
 
     public DbSet<Shift> Shifts => Set<Shift>();
 
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.Properties<Instant>().HaveConversion<NodaTimeConverters.InstantConverter>();

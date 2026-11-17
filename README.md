@@ -82,9 +82,14 @@ the trusted clock. Any other field (e.g. `"time"`) is rejected with 400 (`DECISI
 
 Until login arrives in Phase 4, the caller is named by the **Development-only** header `X-Dev-Employee`
 (seeded users: `manager`, `alice`, `bob`, `carol`). In any other environment the header is ignored and every
-punch is a 401 (D-027). Each punch also needs an `Idempotency-Key` header with a new UUID (reuse the same one when
-you retry that punch; replay of retries is added in plan 03 step 2). Swagger at http://localhost:5258/swagger shows
-both headers.
+punch is a 401 (D-027). Each punch also needs an `Idempotency-Key` header with a new UUID. Swagger at
+http://localhost:5258/swagger shows both headers.
+
+**Retrying a punch:** if the response is lost (or you double-click), send the **same** `Idempotency-Key` again. The
+server answers with the original result (same status and body, no second punch, no new time lookup), even if the shift
+has been closed since (D-032). Only successful punches are remembered, so a retry after a 503 or a 409 is a real new
+attempt. The key belongs to one employee and one intent: reusing it for the other intent (a clock-out with a
+clock-in's key) is a 422 `idempotency.key_reused`. Use a new UUID for every new punch.
 
     $headers = @{ 'X-Dev-Employee' = 'alice'; 'Idempotency-Key' = [guid]::NewGuid().ToString() }
     Invoke-RestMethod -Method Post -Uri http://localhost:5258/api/punches -Headers $headers `
@@ -97,7 +102,7 @@ both headers.
 A 201 returns the shift: `workDate` (Zurich date of the clock-in), `clockIn` / `clockOut` with `utc`, `zurich`
 (with its offset), `provider`, `crossCheckedBy`, `lowPrecision`, `durationSeconds` (from the UTC instants) and
 `flags` (`long_shift`, `short_shift`). Errors are ProblemDetails with a stable `code`: 409 `shift.already_open` /
-`shift.not_open`, 503 `time.*` (no trusted time, or `time.went_backwards`), 400 `request.invalid` /
+`shift.not_open`, 422 `idempotency.key_reused`, 503 `time.*` (no trusted time, or `time.went_backwards`), 400 `request.invalid` /
 `idempotency.key_missing`, 401 `auth.unauthenticated`, 403 `employee.inactive`.
 
 ## Tests and quality gate

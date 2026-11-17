@@ -70,6 +70,14 @@ public static class PunchErrors
         "The time source returned a time that is not later than your last punch, so it can't be trusted right now. "
         + "Nothing was recorded. Please try again in a moment.");
 
+    /// <summary>422: the same <c>Idempotency-Key</c> was already used for the OTHER intent. A client bug; nothing is done.</summary>
+    public static AppException KeyReused(string originalIntent) => new(
+        ErrorCodes.IdempotencyKeyReused,
+        StatusCodes.Status422UnprocessableEntity,
+        "Idempotency-Key already used for a different punch.",
+        $"This Idempotency-Key was already used for a \"{originalIntent}\". Use a new UUID for each new punch; "
+        + "send the same one only to retry the same punch.");
+
     public static AppException KeyMissing() => new(
         ErrorCodes.IdempotencyKeyMissing,
         StatusCodes.Status400BadRequest,

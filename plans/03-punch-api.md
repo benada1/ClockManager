@@ -1,6 +1,6 @@
 # 03 — Punch API
 
-**Status:** Approved 2026-11-17 (Q1 key required, Q2 went_backwards = 503, Q3 cached trusted server-now) · Step 1 done (punch endpoint, D-027..D-031); step 2 (idempotency) next
+**Status:** Approved 2026-11-17 (Q1 key required, Q2 went_backwards = 503, Q3 cached trusted server-now) · Steps 1–2 done (a878363; step 2 idempotency, D-032..D-034, db review QA-14..16 accepted) · Step 3 (status endpoint) next
 **Lead agent:** backend · **Supporting:** db (idempotency table, transaction review), qa (race, replay, failure tests)
 **Master plan refs:** D1, D5, D6, D7, D9 · §4 "Concurrency", "Business-rule edges" · CLAUDE.md rules 1 and 2
 

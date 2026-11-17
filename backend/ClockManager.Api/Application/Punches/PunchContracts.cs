@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using ClockManager.Api.Application.Shifts;
 
 namespace ClockManager.Api.Application.Punches;
 
@@ -8,6 +9,9 @@ public enum PunchIntent
     ClockIn,
     ClockOut,
 }
+
+/// <summary>What a punch answers: the status (201; a replay returns the stored one) and the shift body.</summary>
+public sealed record PunchResult(int Status, ShiftView Shift);
 
 /// <summary>
 /// Body of <c>POST /api/punches</c>: the intent only, never a time (CLAUDE.md rule 1).

@@ -272,6 +272,32 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** No index on flags: "all long shifts" is a query over the duration, not a column filter (fine at this scale; Phase 6 reports compute it in SQL).
 - **Refs:** `Application/Shifts/ShiftView.cs` · `PunchRulesTests.P13_*`, `P14_*`, `Flags_are_computed_from_the_UTC_duration_not_the_wall_clock_across_DST_end`
 
+### D-032 — Idempotent punches: only successes are stored, per employee, and a replay returns the stored body
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend, db
+- **Context:** A lost response or a double click makes the client send the same punch again. Without help the retry gets 409 `shift.already_open` for a clock-in that actually worked.
+- **Options:** (a) store every outcome, including 409/503 · (b) store only successful punches · (c) no table: treat "same key" as "the employee's latest shift". Scope: global key vs per employee. Replay: rebuild the answer from the shift now vs return what was answered then.
+- **Decision:** (b), scoped per employee: table `IdempotencyRecords`, unique index `UX_IdempotencyRecords_EmployeeId_Key`. Same key + same intent → the stored status (201) and body, with no provider call and no new row. Same key + the other intent → 422 `idempotency.key_reused`, nothing changes. The body is the same `ShiftView` the controller returns, serialized with the API's own JSON options, so a replay is identical in content, including the flags and durations **as they were then** (a clock-in key still replays an open shift after the shift was closed). `CreatedUtc` is the punch's trusted instant, never a local clock. The table's CHECKs (intent, status 2xx, body is JSON, offset +00:00, non-empty key) and NO ACTION foreign keys are in `IdempotencyRecordConfiguration`.
+- **Why:** (a) would make a retry after a 503 replay the 503 forever, which defeats the Phase 5 "Retry" button. (c) can't tell a retry from a genuine new punch and gives no 422. A global key would let one employee read another's answer. Returning the old body keeps "same request, same answer" true even when thresholds change; rebuilding it would not.
+- **Trade-offs:** The body is stored as JSON text, so a later change of the `ShiftView` shape leaves old replays in the old shape (acceptable: keys are meant for seconds to minutes, not months). Records are never deleted (see Known limitations).
+- **Refs:** plans/03-punch-api.md §5 · `Domain/IdempotencyRecord.cs` · `PunchIdempotencyTests` (P6, P8, P10 and the rest) · `IdempotencyRecordSchemaTests`
+
+### D-033 — The shift and its idempotency record are written in one transaction, still after the provider call
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Options:** (a) save the shift, then the record, in two separate commits · (b) one explicit transaction around both writes · (c) the record first, then the shift.
+- **Decision:** (b). `BeginTransaction` → save the shift (INSERT or closing UPDATE) → build the response from the saved row → insert the record → commit. The provider call and the state checks stay before it, so no lock is held during an HTTP call (D-028).
+- **Why:** With (a), a crash between the commits leaves a shift without a record, and the retry then gets 409 instead of the replay. (c) is impossible: the record holds the response, which holds the new shift's Id. The explicit transaction can't hit EF's execution-strategy restriction because no retry strategy is configured.
+- **Trade-offs:** The transaction holds the shift's lock for two statements (microseconds). Two SaveChanges calls instead of one.
+- **Refs:** `PunchService.SaveShiftAndRecordAsync` · `PunchIdempotencyTests.The_shift_and_its_record_are_one_transaction_*` (a trigger makes the record insert fail; the shift is rolled back)
+
+### D-034 — Parallel requests with the same key: the loser replays the winner's answer
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** Two requests with one key can both pass the replay lookup (no record yet) and the state check, then race to save.
+- **Options:** (a) the loser answers 409 like any lost race · (b) the loser looks up the key again and replays the winner's stored answer · (c) lock per key before the provider call.
+- **Decision:** (b). Every lost-race signal is checked against the key before it becomes a 409: `shift.already_open` / `shift.not_open` from the state check, from the monotonic guard, from SQL 2601 on `UX_Shifts_OneOpenPerEmployee` and from `DbUpdateConcurrencyException`; a 2601 on `UX_IdempotencyRecords_EmployeeId_Key` (told apart from the shift index by the index name in the message) is a replay too. A twin that left no record yet (it failed or is still in flight) leaves the original 409. Races with DIFFERENT keys are unchanged (P5, P12).
+- **Why:** For the client, the second request is a retry of the first and must get the same answer; a 409 "you are already clocked in" for a clock-in that just succeeded is the confusion idempotency exists to prevent. (c) would hold a lock over an HTTP call (D-028).
+- **Trade-offs:** The losers each cost a provider call, as in D-028. A loser that fails before the winner commits can still see a 409 once; its next retry replays.
+- **Refs:** `PunchService.PunchAsync` · `PunchIdempotencyTests.P7_*` (10 parallel clock-ins, 3 rounds; 5 parallel clock-outs, 3 rounds)
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -335,7 +361,16 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Trusted time equal to or before the last punch (T10, T11, P11) | 503 `time.went_backwards`, nothing saved, Warning logged (D-030); applies to a clock-in before the previous clock-out too | `PunchRulesTests.P11_*`, `PunchApiTests.P11_*` |
 | Another tab saves a punch at the same instant while ours waits for the provider (double click) | 409 of the lost race (`shift.already_open` + open shift / `shift.not_open`), not 503 `time.went_backwards`: the guard compares with a snapshot from before the call (D-030) | `PunchApiTests.Clock_in_with_the_same_time_as_*`, `Clock_out_with_the_same_time_as_*`, `Time_behind_a_punch_that_existed_before_the_call_is_still_503_*` |
 | Punch body with a `time` field, unknown intent, wrong case, no body (P15) | 400 `request.invalid`, no provider call, nothing saved (D-029) | `PunchApiTests.P15_*` |
-| Missing, non-canonical or all-zero `Idempotency-Key` | 400 `idempotency.key_missing`, no provider call (stored and replayed from plan 03 step 2) | `PunchApiTests.P16_*` |
+| Missing, non-canonical or all-zero `Idempotency-Key` | 400 `idempotency.key_missing`, no provider call | `PunchApiTests.P16_*` |
+| Same request sent twice, e.g. the response was lost (P6) | The second answer is the first (status and body, byte for byte); no provider call, no new row (D-032) | `PunchIdempotencyTests.P6_*` |
+| Replay while the provider is down | Still 201 from the stored record: a replay never asks the provider | `PunchIdempotencyTests.A_replay_works_while_the_provider_is_down_*` |
+| Clock-in key replayed after the shift was closed / clock-out key replayed | The ORIGINAL answer (open shift without duration / the clock-out with its duration), not the shift's current state | `PunchIdempotencyTests.A_clock_in_key_still_replays_after_*` |
+| Same key, other intent (P8) | 422 `idempotency.key_reused`, no provider call, nothing changes; the stored original still replays | `PunchIdempotencyTests.P8_*` |
+| Same key used by two employees | Independent: each gets their own punch and their own replay | `PunchIdempotencyTests.The_same_key_used_by_two_employees_*` |
+| Retry with the same key after a 503 or a 409 (P10) | Really retried: failures are not stored; 201 once the provider is back / the state allows it | `PunchIdempotencyTests.P10_*`, `A_409_is_not_stored_*` |
+| Same key 10 times in parallel (P7), same clock-out key in parallel | 1 row, all answers identical: the losers replay the winner (D-034) | `PunchIdempotencyTests.P7_*` |
+| Writing the idempotency record fails after the shift was written | One transaction: the shift is rolled back too, the answer is 500 and a retry punches normally (D-033) | `PunchIdempotencyTests.The_shift_and_its_record_are_one_transaction_*` |
+| Idempotency table: duplicate (employee, key), bad intent / status / body / key / offset, deleting a referenced shift or employee | The database refuses it (SQL 2601 / 547) | `IdempotencyRecordSchemaTests` |
 | `X-Dev-Employee` sent to Production (P17) / unknown or missing user / inactive employee (P18) | 401 `auth.unauthenticated` / 401 / 403 `employee.inactive`; no provider call (D-027) | `PunchApiTests.P17_*`, `Development_without_a_known_employee_is_401`, `P18_*` |
 | Client disconnects while the punch waits for the provider (P19) | The provider wait is cancelled, nothing saved, no Warning/Error and no 503 logged | `PunchApiTests.P19_*` |
 | Shift across DST start / end returned by the API (T4, T5, T6) | `durationSeconds` 25200 / 32400 / 2700 from UTC; each punch shows its own offset, e.g. `02:30+02:00` → `02:15+01:00` | `PunchRulesTests.P2_*`, `P3_*`, `PunchApiTests.Shift_across_DST_end_over_HTTP_*` |
@@ -384,6 +419,18 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
   +02:00. Mitigation: `PunchStamp.From` checks the offset against tzdb before anything is saved;
   `ShiftIntegrityTests.Documented_gap_offset_that_disagrees_with_tzdb_is_accepted_by_the_database` records the gap.
 - **Generic error codes come from the HTTP status.** Errors produced only by a status (`request.not_found`, `request.method_not_allowed`, ...) get a code mapped from the status. Specific codes come only from `AppException`.
-- **Until plan 03 step 2, a retried punch is not replayed.** The `Idempotency-Key` header is required and checked
-  (UUID), but not stored yet. A retry after a lost response gets 409 `shift.already_open` (with the open shift in the
-  body) instead of the original 201. Step 2 adds the `IdempotencyRecords` table and replay.
+- **Idempotency records are never cleaned up.** Every successful punch adds one row to `IdempotencyRecords` (a key and a
+  small JSON body) and nothing deletes it, so the table grows by about two rows per employee per working day. At this
+  scale that is harmless, and keeping the rows means a very late retry still replays instead of failing with 409.
+  Not built: a retention job (e.g. delete records older than 30 days) and a size limit; it would need a hosted
+  service or a scheduled SQL job and a decision on how long a key must stay valid.
+- **Idempotency records are only checked by the application, not by every DB rule (db review of step 2, QA-14, QA-16).**
+  `ShiftId` is informational: replay reads the stored `ResponseBody`, looked up by `(EmployeeId, Key)`, so the database
+  does not check that the shift belongs to the employee or that `Intent` matches the shift state. A composite FK was
+  rejected because it needs an extra unique index on the hot `Shifts` table for no read-path benefit. The `Intent` CHECK
+  follows the column collation (case-insensitive); the only writer is `PunchService.SaveShiftAndRecordAsync`, which
+  writes the exact wire values. That method uses a manual transaction: if `EnableRetryOnFailure` is ever turned on, it
+  must be wrapped in `CreateExecutionStrategy().ExecuteAsync`.
+- **A same-key twin can answer 503 once instead of replaying (QA-15).** In a very narrow window (twin A commits between
+  twin B's state check and B's last-punch read, and B's trusted time is not later than A's), B gets 503
+  `time.went_backwards`. Nothing is wrong at rest: the client retries with the same key and gets A's stored answer.

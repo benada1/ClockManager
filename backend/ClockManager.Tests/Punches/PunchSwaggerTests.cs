@@ -26,7 +26,7 @@ public sealed class PunchSwaggerTests
             .ToList();
         Assert.Contains(("Idempotency-Key", "header"), parameters);
         Assert.Contains(("X-Dev-Employee", "header"), parameters);
-        Assert.Equal(["201", "400", "401", "403", "409", "503"], post.GetProperty("responses").EnumerateObject().Select(r => r.Name));
+        Assert.Equal(["201", "400", "401", "403", "409", "422", "503"], post.GetProperty("responses").EnumerateObject().Select(r => r.Name));
 
         var body = doc.GetProperty("components").GetProperty("schemas").GetProperty("PunchRequest");
         Assert.Equal(["intent"], body.GetProperty("properties").EnumerateObject().Select(p => p.Name));

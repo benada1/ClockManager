@@ -68,6 +68,60 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ClockManager.Api.Domain.IdempotencyRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Intent")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("Key")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResponseBody")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ResponseStatus")
+                        .HasColumnType("int");
+
+                    b.Property<long>("ShiftId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("EmployeeId", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_IdempotencyRecords_EmployeeId_Key");
+
+                    b.ToTable("IdempotencyRecords", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IdempotencyRecords_CreatedUtcOffsetZero", "DATEPART(TZOFFSET, [CreatedUtc]) = 0");
+
+                            t.HasCheckConstraint("CK_IdempotencyRecords_Intent", "[Intent] IN (N'clock-in', N'clock-out')");
+
+                            t.HasCheckConstraint("CK_IdempotencyRecords_KeyNotEmpty", "[Key] <> '00000000-0000-0000-0000-000000000000'");
+
+                            t.HasCheckConstraint("CK_IdempotencyRecords_ResponseBodyJson", "ISJSON([ResponseBody]) = 1");
+
+                            t.HasCheckConstraint("CK_IdempotencyRecords_ResponseStatus", "[ResponseStatus] >= 200 AND [ResponseStatus] < 300");
+                        });
+                });
+
             modelBuilder.Entity("ClockManager.Api.Domain.Shift", b =>
                 {
                     b.Property<long>("Id")
@@ -126,6 +180,23 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Shifts_ClockOutZurichDate", "[ClockOut_ZurichDate] = CAST(SWITCHOFFSET([ClockOut_Utc], [ClockOut_ZurichOffsetMinutes]) AS date)");
                         });
+                });
+
+            modelBuilder.Entity("ClockManager.Api.Domain.IdempotencyRecord", b =>
+                {
+                    b.HasOne("ClockManager.Api.Domain.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_IdempotencyRecords_Employees_EmployeeId");
+
+                    b.HasOne("ClockManager.Api.Domain.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_IdempotencyRecords_Shifts_ShiftId");
                 });
 
             modelBuilder.Entity("ClockManager.Api.Domain.Shift", b =>

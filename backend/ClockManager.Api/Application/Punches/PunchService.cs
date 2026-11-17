@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ClockManager.Api.Application.Employees;
 using ClockManager.Api.Application.Shifts;
 using ClockManager.Api.Application.Time;
@@ -9,16 +10,19 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NodaTime;
+using MvcJsonOptions = Microsoft.AspNetCore.Mvc.JsonOptions;
 
 namespace ClockManager.Api.Application.Punches;
 
 /// <summary>
-/// Clock In / Clock Out (plans/03-punch-api.md §5). Order: who → state check → trusted time → monotonic guard → save →
-/// map DB errors. The time comes only from <see cref="ITrustedClock"/>; the client never sends one.
+/// Clock In / Clock Out (plans/03-punch-api.md §5). Order: who → key + replay of a known key → state check → trusted
+/// time → monotonic guard → save (shift + idempotency record, one transaction) → map DB errors. The time comes only
+/// from <see cref="ITrustedClock"/>; the client never sends one.
 /// <para>
 /// The provider call (up to 3 s) happens BEFORE anything is written and with no transaction open (D-028), so no lock is
 /// held during an HTTP call. The state check before it is only a fast answer for an obviously wrong click; the real
-/// guarantee is the database (<c>UX_Shifts_OneOpenPerEmployee</c>, <c>RowVersion</c>), whose errors are mapped to 409s.
+/// guarantee is the database (<c>UX_Shifts_OneOpenPerEmployee</c>, <c>RowVersion</c>, the unique idempotency key),
+/// whose errors are mapped to 409s or to a replay of the winner's answer (D-032).
 /// </para>
 /// </summary>
 public sealed class PunchService(
@@ -27,30 +31,47 @@ public sealed class PunchService(
     ClockManagerDbContext db,
     ZurichTime zurich,
     IOptions<ShiftRulesOptions> rules,
+    IOptions<MvcJsonOptions> jsonOptions,
     ILogger<PunchService> logger)
 {
     private const int SqlUniqueIndexViolation = 2601;
     private const int SqlUniqueConstraintViolation = 2627;
 
     /// <param name="idempotencyKey">Raw <c>Idempotency-Key</c> header value; required, must be a UUID.</param>
-    public async Task<ShiftView> PunchAsync(PunchIntent intent, string? idempotencyKey, CancellationToken ct)
+    public async Task<PunchResult> PunchAsync(PunchIntent intent, string? idempotencyKey, CancellationToken ct)
     {
         // 1. Who? (401 / 403)
         var employee = await currentEmployee.RequireActiveAsync(ct);
 
-        // 2. Idempotency-Key. Required by the contract (plan 03 Q1), so it is validated now, but in step 1 it is NOT
-        //    stored or replayed yet: that is plan 03 step 2 (IdempotencyRecords table, replay, key reuse → 422).
-        _ = ParseIdempotencyKey(idempotencyKey);
+        // 2. Idempotency-Key (400), then replay (D-032). A key already stored for this employee is answered from the
+        //    stored response: no provider call, no new row. The other intent under the same key is a client bug → 422.
+        var key = ParseIdempotencyKey(idempotencyKey);
+        var wireIntent = WireIntent(intent);
+        var recorded = await FindRecordAsync(employee.Id, key, ct);
+        if (recorded is not null) return Replay(recorded, wireIntent);
 
-        return intent switch
+        try
         {
-            PunchIntent.ClockIn => await ClockInAsync(employee, ct),
-            PunchIntent.ClockOut => await ClockOutAsync(employee, ct),
-            _ => throw new ArgumentOutOfRangeException(nameof(intent), intent, "Unknown intent."),
-        };
+            return intent switch
+            {
+                PunchIntent.ClockIn => await ClockInAsync(employee, key, ct),
+                PunchIntent.ClockOut => await ClockOutAsync(employee, key, ct),
+                _ => throw new ArgumentOutOfRangeException(nameof(intent), intent, "Unknown intent."),
+            };
+        }
+        catch (AppException ex) when (ex.Code is ErrorCodes.ShiftAlreadyOpen or ErrorCodes.ShiftNotOpen)
+        {
+            // A 409 may only mean "my twin request with the same key won the race" (double click, a retry racing the
+            // original). Then the twin's stored record exists by now: answer with it instead of the conflict.
+            var winner = await FindRecordAsync(employee.Id, key, ct);
+            if (winner is null) throw;
+            logger.LogInformation(
+                "Punch with key {Key} for employee {EmployeeId} lost a race to its twin; replaying the stored response.", key, employee.Id);
+            return Replay(winner, wireIntent);
+        }
     }
 
-    private async Task<ShiftView> ClockInAsync(CurrentEmployee employee, CancellationToken ct)
+    private async Task<PunchResult> ClockInAsync(CurrentEmployee employee, Guid key, CancellationToken ct)
     {
         // 3. State check (fast path only), and the latest punch as it was before the provider call.
         var open = await FindOpenShiftAsync(employee.Id, tracked: false, ct);
@@ -67,17 +88,22 @@ public sealed class PunchService(
             return PunchErrors.AlreadyOpen(current is null ? null : ShiftViewMapper.ToView(current, rules.Value));
         }, ct);
 
-        // 6. Save. One INSERT, so SaveChanges' own transaction is enough. Step 2 adds the idempotency record to the
-        //    same transaction.
+        // 6. Save the shift and its idempotency record in one transaction.
         var shift = new Shift(employee.Id, PunchStamp.From(trusted, zurich));
         db.Shifts.Add(shift);
+        PunchResult result;
         try
         {
-            await db.SaveChangesAsync(ct);
+            result = await SaveShiftAndRecordAsync(shift, employee.Id, key, PunchRequest.ClockIn, trusted, ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex, IdempotencyRecordConfiguration.EmployeeKeyIndex))
+        {
+            return await ReplayWinnerAsync(employee.Id, key, PunchRequest.ClockIn, ex, ct);
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex, ShiftConfiguration.OneOpenPerEmployeeIndex))
         {
-            // 7. Lost the race: another request opened a shift between our state check and our INSERT.
+            // 7. Lost the race: another request opened a shift between our state check and our INSERT. (If that request
+            //    was our own twin with the same key, PunchAsync turns this 409 into a replay.)
             db.ChangeTracker.Clear();
             var winner = await FindOpenShiftAsync(employee.Id, tracked: false, CancellationToken.None);
             logger.LogInformation("Clock-in for employee {EmployeeId} lost a race to shift {ShiftId}.", employee.Id, winner?.Id);
@@ -87,10 +113,10 @@ public sealed class PunchService(
         logger.LogInformation(
             "Employee {EmployeeId} clocked in: shift {ShiftId} at {Utc} from {Provider} (cross-checked by {CrossCheckedBy}).",
             employee.Id, shift.Id, trusted.Utc, trusted.Provider, trusted.CrossCheckedBy);
-        return ShiftViewMapper.ToView(shift, rules.Value);
+        return result;
     }
 
-    private async Task<ShiftView> ClockOutAsync(CurrentEmployee employee, CancellationToken ct)
+    private async Task<PunchResult> ClockOutAsync(CurrentEmployee employee, Guid key, CancellationToken ct)
     {
         // 3. State check. The shift is tracked with the RowVersion read here: if anyone changes or closes it before our
         //    UPDATE, the UPDATE matches no row and EF throws DbUpdateConcurrencyException.
@@ -104,15 +130,21 @@ public sealed class PunchService(
         //    A punch saved by another request during our call (another tab closed the shift) → 409 not open.
         await EnsureLaterThanLastPunchAsync(employee.Id, trusted, lastBefore, () => Task.FromResult(PunchErrors.NotOpen()), ct);
 
-        // 6. Save.
+        // 6. Save the shift and its idempotency record in one transaction.
         shift.Close(PunchStamp.From(trusted, zurich));
+        PunchResult result;
         try
         {
-            await db.SaveChangesAsync(ct);
+            result = await SaveShiftAndRecordAsync(shift, employee.Id, key, PunchRequest.ClockOut, trusted, ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex, IdempotencyRecordConfiguration.EmployeeKeyIndex))
+        {
+            return await ReplayWinnerAsync(employee.Id, key, PunchRequest.ClockOut, ex, ct);
         }
         catch (DbUpdateConcurrencyException)
         {
-            // 7. Someone else (another tab) closed it first. Their clock-out stays.
+            // 7. Someone else (another tab) closed it first. Their clock-out stays. (If that was our own twin with the
+            //    same key, PunchAsync turns this 409 into a replay.)
             logger.LogInformation("Clock-out of shift {ShiftId} lost a race: it was closed meanwhile.", shift.Id);
             throw PunchErrors.NotOpen();
         }
@@ -120,8 +152,59 @@ public sealed class PunchService(
         logger.LogInformation(
             "Employee {EmployeeId} clocked out: shift {ShiftId} at {Utc} from {Provider} (cross-checked by {CrossCheckedBy}).",
             employee.Id, shift.Id, trusted.Utc, trusted.Provider, trusted.CrossCheckedBy);
-        return ShiftViewMapper.ToView(shift, rules.Value);
+        return result;
     }
+
+    /// <summary>
+    /// Step 6, one transaction, still AFTER the provider call (D-028, D-032): write the shift (the INSERT or the closing
+    /// UPDATE), build the response from the saved row (a new shift's Id exists only now), store it as the idempotency
+    /// record, commit. If anything fails, the transaction rolls back and neither row exists.
+    /// </summary>
+    private async Task<PunchResult> SaveShiftAndRecordAsync(
+        Shift shift, int employeeId, Guid key, string wireIntent, TrustedInstant trusted, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.SaveChangesAsync(ct);
+
+        var view = ShiftViewMapper.ToView(shift, rules.Value);
+        var body = JsonSerializer.Serialize(view, jsonOptions.Value.JsonSerializerOptions);
+        db.IdempotencyRecords.Add(new IdempotencyRecord(
+            employeeId, key, wireIntent, shift.Id, StatusCodes.Status201Created, body, trusted.Utc)); // the trusted instant
+        await db.SaveChangesAsync(ct);
+
+        await transaction.CommitAsync(ct);
+        return new PunchResult(StatusCodes.Status201Created, view);
+    }
+
+    private Task<IdempotencyRecord?> FindRecordAsync(int employeeId, Guid key, CancellationToken ct) =>
+        db.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(r => r.EmployeeId == employeeId && r.Key == key, ct);
+
+    /// <summary>The stored answer of an earlier successful punch with this key, exactly as it was then (D-032).</summary>
+    private PunchResult Replay(IdempotencyRecord record, string wireIntent)
+    {
+        if (record.Intent != wireIntent) throw PunchErrors.KeyReused(record.Intent);
+        var view = JsonSerializer.Deserialize<ShiftView>(record.ResponseBody, jsonOptions.Value.JsonSerializerOptions)
+            ?? throw new InvalidOperationException($"The stored response of idempotency record {record.Id} is empty.");
+        return new PunchResult(record.ResponseStatus, view);
+    }
+
+    /// <summary>Unique violation on (EmployeeId, Key): a parallel request with the same key committed first. Replay it.</summary>
+    private async Task<PunchResult> ReplayWinnerAsync(int employeeId, Guid key, string wireIntent, Exception violation, CancellationToken ct)
+    {
+        db.ChangeTracker.Clear();
+        var winner = await FindRecordAsync(employeeId, key, ct)
+            ?? throw new InvalidOperationException("Idempotency key violation but no stored record.", violation);
+        logger.LogInformation(
+            "Punch with key {Key} for employee {EmployeeId} lost a race on the key index; replaying the stored response.", key, employeeId);
+        return Replay(winner, wireIntent);
+    }
+
+    private static string WireIntent(PunchIntent intent) => intent switch
+    {
+        PunchIntent.ClockIn => PunchRequest.ClockIn,
+        PunchIntent.ClockOut => PunchRequest.ClockOut,
+        _ => throw new ArgumentOutOfRangeException(nameof(intent), intent, "Unknown intent."),
+    };
 
     private Task<Shift?> FindOpenShiftAsync(int employeeId, bool tracked, CancellationToken ct)
     {
