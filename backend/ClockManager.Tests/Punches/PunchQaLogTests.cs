@@ -18,8 +18,7 @@ public sealed class PunchQaLogTests(MigratedDatabaseFixture database) : IClassFi
     private const string ClockIn = """{"intent":"clock-in"}""";
     private const string ClockOut = """{"intent":"clock-out"}""";
 
-    [SqlServerTheory(Skip = "QA-20 open: a handled AppException (409/422/503) still logs an Error 'An unhandled exception has occurred while executing the request.' with the exception from Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware (.NET 8 logs before IExceptionHandler runs). Expected: nothing at Error for a handled business refusal.")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerTheory]
     [InlineData("409-already-open")]
     [InlineData("409-not-open")]
     [InlineData("422-key-reused")]

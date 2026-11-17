@@ -97,3 +97,16 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Also asked:** why migration files are named like `20261117172920_ProviderNamesNotBlank.cs`. That is EF Core's own
   naming: the timestamp prefix is how EF orders migrations, and it is stored in the database's `__EFMigrationsHistory`
   table, so renaming the files would break `dotnet ef database update`. The readable name is the part after the `_`.
+
+## 2026-11-18 — Handled refusals were logged at Error by the framework (QA-20)
+
+- **Asked:** Phase 1, the error handling: ProblemDetails with stable codes, `IExceptionHandler` logging 4xx at Information
+  and 5xx at Warning.
+- **What went wrong:** On .NET 8, `ExceptionHandlerMiddleware` logs "An unhandled exception has occurred" at Error for every
+  exception before it calls `IExceptionHandler`. So a double click (409), a reused key (422) or a provider outage (503) wrote
+  an Error line with a stack trace, and any alert on Error would have fired for normal behavior. Claude had only tested the
+  response body and status, never the log level.
+- **Found by:** the qa agent in Phase 3 (QA-20), as a skipped known-bug test.
+- **Fix:** `AppExceptionMiddleware`, just inside `UseExceptionHandler`, catches `AppException` and delegates to the same
+  `AppExceptionHandler` (D-038). The QA test is un-skipped; `ErrorLoggingTests` adds a no-database check that a real
+  exception still logs at Error and that 404 pages and the no-cache header are unchanged.

@@ -40,6 +40,13 @@ public static class ProblemDetailsSetup
     public static IApplicationBuilder UseAppProblemDetails(this IApplicationBuilder app)
     {
         app.UseExceptionHandler();
+        // Why a middleware: on .NET 8 ExceptionHandlerMiddleware logs "An unhandled exception has occurred" at Error for
+        // EVERY exception before it calls IExceptionHandler, and SuppressDiagnosticsCallback only exists in .NET 9. A
+        // double click or a provider outage would page whoever alerts on Error. This middleware sits just inside it, takes
+        // AppException first and delegates to the same AppExceptionHandler (still one place that builds ProblemDetails).
+        // A real unexpected exception passes through and is still logged at Error by the framework and by the handler.
+        // Alternatives (MVC filter: misses non-controller code; log filter by message: brittle) are in D-038.
+        app.UseMiddleware<AppExceptionMiddleware>();
         app.UseStatusCodePages();
         return app;
     }
