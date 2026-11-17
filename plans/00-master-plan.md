@@ -1,6 +1,6 @@
 # 00 — Master plan: ClockManager
 
-**Status:** Proposed, awaiting approval
+**Status:** Approved 2026-11-17 · Phase 0 done, Phase 1 next
 **Owner:** ben + Claude Code
 **Scope:** The whole assignment. Each phase below gets its own detailed `plans/NN-<feature>.md`
 before any code is written for it.
@@ -141,13 +141,13 @@ The flow for a feature that spans areas (e.g. Phase 3): **db** confirms the sche
 session runs `/verify` and commits. The qa agent writes tests but never changes production code.
 
 ### Phase 0 — Project foundations
-- [ ] Create `docs/claude-worklog.md`, `DECISIONS.md` skeleton (sections: Decisions, Edge cases, Not done, Known limits).
-- [ ] Add `.claude/agents/` — `backend.md`, `frontend.md`, `db.md`, `qa.md` (scope, rules, hand-off format).
-- [ ] Review `.claude/settings.json` permissions (allow dotnet/npm/git read commands).
-- [ ] Add `backend/ClockManager.Tests` (xUnit, FluentAssertions, `Microsoft.AspNetCore.Mvc.Testing`); add both projects to a `ClockManager.sln`.
-- [ ] Backend folder structure (`Domain/ Application/ Infrastructure/ Common/`), ProblemDetails middleware, Options validation on startup.
-- [ ] Add a forbidden-clock check: a test/analyzer that fails if `DateTime.Now|UtcNow`, `DateTimeOffset.Now|UtcNow` or `TimeProvider.System` appear outside an allowlist (used by `/verify`).
-- [ ] GitHub Actions CI: backend build + test (SQL Server service container), frontend build + lint.
+- [x] Create `docs/claude-worklog.md`, `DECISIONS.md` skeleton (sections: Decisions, Edge cases, Not done, Known limits).
+- [x] Add `.claude/agents/` — `backend.md`, `frontend.md`, `db.md`, `qa.md` (scope, rules, hand-off format).
+- [x] Review `.claude/settings.json` permissions (allow dotnet/npm/git read commands; ask before commit/push/DB update; deny force-push and secret files).
+- [x] Add `backend/ClockManager.Tests` (xUnit with plain `Assert` — see D-002, `Microsoft.AspNetCore.Mvc.Testing`); add both projects to `backend/ClockManager.sln`.
+- [x] Backend folder structure (`Domain/ Application/ Infrastructure/ Common/`), ProblemDetails middleware, Options validation on startup (D-003, D-004, D-005).
+- [x] Add a forbidden-clock check (D-001): `BannedApiAnalyzers` makes `DateTime.Now|UtcNow|Today`, `DateTimeOffset.Now|UtcNow`, `TimeProvider.System` a **build error** (RS0030); the regex guard in `/verify` stays as a second layer and covers the frontend.
+- [x] GitHub Actions CI: backend build + test, frontend lint + build, clock guard. *The SQL Server service container moves to Phase 2*, with the first tests that need it (unverified CI config is a risk).
 
 ### Phase 1 — Trusted clock (`plans/01-trusted-clock.md`) — the core
 - [ ] Research and pick 2 providers (zone support, UTC field, rate limits, HTTPS). Record the choice in DECISIONS.md.
@@ -162,7 +162,7 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 - [ ] Entities: `Employee`, `Shift`, `PunchAudit`/`IdempotencyRecord`, `ShiftCorrection`.
 - [ ] `IEntityTypeConfiguration<T>` for each; `datetimeoffset`, `rowversion`, filtered unique index, check constraints.
 - [ ] Initial migration committed; seed data (1 manager, 3 employees) via a migration or a startup seeder for Development only.
-- [ ] Integration test fixture against LocalDB (Testcontainers as an option in CI).
+- [ ] Integration test fixture against LocalDB (Testcontainers as an option in CI). Add the SQL Server service container to `.github/workflows/ci.yml`.
 - [ ] Tests: the DB rejects a second open shift; the DB rejects clock-out ≤ clock-in.
 
 ### Phase 3 — Punch API (`plans/03-punch-api.md`)
