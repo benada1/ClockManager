@@ -1,0 +1,21 @@
+<Project>
+  <!--
+    Clock guard, compile-time layer (CLAUDE.md rule 1, DECISIONS D-001).
+    Local-clock APIs are banned in production code: using one is a build ERROR (RS0030).
+    The list is in BannedSymbols.txt. Test projects are exempt (they use fixed instants and fakes).
+    A legitimate non-record use (log timestamp, cache TTL) must opt out explicitly, for both layers:
+      #pragma warning disable RS0030
+      var t = DateTimeOffset.UtcNow; // clock-ok: <reason>   (the regex guard in verify.ps1 reads this)
+      #pragma warning restore RS0030
+  -->
+  <ItemGroup Condition="'$(IsTestProject)' != 'true' and !$(MSBuildProjectName.EndsWith('Tests'))">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true' and !$(MSBuildProjectName.EndsWith('Tests'))">
+    <WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,6 @@
+P:System.DateTime.Now;Punch time must come from ITrustedClock (CLAUDE.md rule 1)
+P:System.DateTime.UtcNow;Punch time must come from ITrustedClock (CLAUDE.md rule 1)
+P:System.DateTime.Today;Punch time must come from ITrustedClock (CLAUDE.md rule 1)
+P:System.DateTimeOffset.Now;Punch time must come from ITrustedClock (CLAUDE.md rule 1)
+P:System.DateTimeOffset.UtcNow;Punch time must come from ITrustedClock (CLAUDE.md rule 1)
+P:System.TimeProvider.System;Punch time must come from ITrustedClock (CLAUDE.md rule 1)
