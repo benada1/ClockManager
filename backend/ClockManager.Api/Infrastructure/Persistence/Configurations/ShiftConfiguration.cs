@@ -42,6 +42,10 @@ internal sealed class ShiftConfiguration : IEntityTypeConfiguration<Shift>
                 t.HasCheckConstraint($"CK_Shifts_{punch}Offset", $"[{punch}_ZurichOffsetMinutes] IN (60, 120)");
                 t.HasCheckConstraint($"CK_Shifts_{punch}RoundTrip", $"[{punch}_RoundTripMs] >= 0");
                 t.HasCheckConstraint($"CK_Shifts_{punch}UtcOffsetZero", $"DATEPART(TZOFFSET, [{punch}_Utc]) = 0");
+                // A punch must name its time source (CLAUDE.md rule 1 audit trail); NOT NULL alone lets '' and '   '
+                // through (QA-13). NULL passes these, so an open shift's ClockOut columns and a single-source punch are fine.
+                t.HasCheckConstraint($"CK_Shifts_{punch}ProviderNotBlank", $"LEN(LTRIM(RTRIM([{punch}_Provider]))) > 0");
+                t.HasCheckConstraint($"CK_Shifts_{punch}CrossCheckedByNotBlank", $"LEN(LTRIM(RTRIM([{punch}_CrossCheckedBy]))) > 0");
                 // Both set or both null. "IS NOT NULL" on the delta is needed: NULL >= 0 is UNKNOWN, and a CHECK only
                 // rejects FALSE, so without it "cross-checked by X, delta unknown" was stored (QA-12).
                 t.HasCheckConstraint($"CK_Shifts_{punch}CrossCheck",

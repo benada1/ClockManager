@@ -348,22 +348,38 @@ public sealed class ShiftIntegrityTests(MigratedDatabaseFixture database) : ICla
         Assert.Contains($"CK_Shifts_{punch}RoundTrip", sql.Message);
     }
 
-    [Theory(Skip = "QA-13 open: no CHECK refuses a blank provider name. Fixed in a following fix(db) commit.")]
+    [SqlServerTheory]
     [InlineData("ClockIn", "")]
     [InlineData("ClockIn", "   ")]
     [InlineData("ClockOut", "")]
     [InlineData("ClockOut", "   ")]
-    [Trait("Status", "KnownBug")] // QA-13: no CHECK on the provider name; the DB stores a punch with no time source.
     public async Task QA13_blank_provider_name_is_refused_by_the_database(string punch, string provider)
     {
         // PunchStamp.From refuses a blank provider, but CLAUDE.md rule 2 says the DB must refuse it too: a punch whose
-        // time source is "" can't be audited against rule 1. NOT NULL alone lets '' and '   ' through.
+        // time source is "" can't be audited against rule 1. NOT NULL alone let '' and '   ' through.
         var employeeId = await AddEmployeeAsync(database);
         var row = ValidClosed(employeeId);
         row[$"{punch}_Provider"] = provider;
 
         var sql = await Assert.ThrowsAsync<SqlException>(() => InsertAsync(database.ConnectionString, row));
         Assert.Equal(ConstraintViolation, sql.Number);
+        Assert.Contains($"CK_Shifts_{punch}ProviderNotBlank", sql.Message);
+    }
+
+    [SqlServerTheory]
+    [InlineData("ClockIn", "")]
+    [InlineData("ClockOut", "  ")]
+    public async Task QA13_blank_cross_check_provider_name_is_refused_by_the_database(string punch, string crossCheckedBy)
+    {
+        // Same gap as the provider: "cross-checked by ''" names no second source. NULL (single source, D-009) stays allowed.
+        var employeeId = await AddEmployeeAsync(database);
+        var row = ValidClosed(employeeId);
+        row[$"{punch}_CrossCheckedBy"] = crossCheckedBy;
+        row[$"{punch}_CrossCheckDeltaMs"] = 5;
+
+        var sql = await Assert.ThrowsAsync<SqlException>(() => InsertAsync(database.ConnectionString, row));
+        Assert.Equal(ConstraintViolation, sql.Number);
+        Assert.Contains($"CK_Shifts_{punch}CrossCheckedByNotBlank", sql.Message);
     }
 
     [SqlServerFact]

@@ -96,7 +96,11 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Shifts_ClockInCrossCheck", "([ClockIn_CrossCheckedBy] IS NULL AND [ClockIn_CrossCheckDeltaMs] IS NULL) OR ([ClockIn_CrossCheckedBy] IS NOT NULL AND [ClockIn_CrossCheckDeltaMs] IS NOT NULL AND [ClockIn_CrossCheckDeltaMs] >= 0)");
 
+                            t.HasCheckConstraint("CK_Shifts_ClockInCrossCheckedByNotBlank", "LEN(LTRIM(RTRIM([ClockIn_CrossCheckedBy]))) > 0");
+
                             t.HasCheckConstraint("CK_Shifts_ClockInOffset", "[ClockIn_ZurichOffsetMinutes] IN (60, 120)");
+
+                            t.HasCheckConstraint("CK_Shifts_ClockInProviderNotBlank", "LEN(LTRIM(RTRIM([ClockIn_Provider]))) > 0");
 
                             t.HasCheckConstraint("CK_Shifts_ClockInRoundTrip", "[ClockIn_RoundTripMs] >= 0");
 
@@ -110,7 +114,11 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Shifts_ClockOutCrossCheck", "([ClockOut_CrossCheckedBy] IS NULL AND [ClockOut_CrossCheckDeltaMs] IS NULL) OR ([ClockOut_CrossCheckedBy] IS NOT NULL AND [ClockOut_CrossCheckDeltaMs] IS NOT NULL AND [ClockOut_CrossCheckDeltaMs] >= 0)");
 
+                            t.HasCheckConstraint("CK_Shifts_ClockOutCrossCheckedByNotBlank", "LEN(LTRIM(RTRIM([ClockOut_CrossCheckedBy]))) > 0");
+
                             t.HasCheckConstraint("CK_Shifts_ClockOutOffset", "[ClockOut_ZurichOffsetMinutes] IN (60, 120)");
+
+                            t.HasCheckConstraint("CK_Shifts_ClockOutProviderNotBlank", "LEN(LTRIM(RTRIM([ClockOut_Provider]))) > 0");
 
                             t.HasCheckConstraint("CK_Shifts_ClockOutRoundTrip", "[ClockOut_RoundTripMs] >= 0");
 

@@ -76,3 +76,13 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** `AND [Delta] IS NOT NULL` in the CHECK, new migration `FixCrossCheckNullDelta`. The regression test
   `QA12_cross_checked_by_a_provider_with_a_NULL_delta_violates_the_cross_check` failed before (row stored) and passes after.
   Lesson recorded for later constraints: in a CHECK, every comparison on a nullable column needs an explicit `IS NOT NULL`.
+
+## 2026-11-17 — Blank provider names were accepted by the database (QA-13)
+
+- **Asked:** Phase 2 step 1 (db agent): the punch evidence columns.
+- **What went wrong:** `{punch}_Provider` was only `NOT NULL`, so `''` or `'   '` could be stored, and the same for
+  `CrossCheckedBy`. `PunchStamp.From` refuses a blank name, but CLAUDE.md rule 2 says the database must refuse it too.
+  A punch that names no time source can't be audited against rule 1.
+- **Found by:** the qa agent in Phase 2 step 2 (provider). The main session added the same test for `CrossCheckedBy`.
+- **Fix:** `LEN(LTRIM(RTRIM(col))) > 0` CHECKs for both punches, migration `ProviderNamesNotBlank`. The 6 `QA13_*` cases
+  failed before the migration and pass after it.
