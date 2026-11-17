@@ -54,3 +54,13 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Found by:** the qa agent while writing step-2 tests (the tests were written before the step-2 code).
 - **Fix:** A fixed `ProviderName` constant. The config slots only choose roles. The regression test
   failed before the fix (`Expected "time.now", Actual "timeapi.io"`) and passes after it. Separate `fix:` commit.
+
+## 2026-11-17 — Startup-validation tests were racy (flaky test)
+
+- **Asked:** Phase 1 steps 1–2 (backend agent): tests that the host refuses to start with bad options.
+- **What went wrong:** One full-suite run failed once and then passed 31 times. The main session couldn't
+  explain it and left it open for qa rather than calling it fixed. Under CPU load the qa agent got 23 failures in 24
+  runs. Cause: with minimal hosting, the host disposes itself after `ValidateOnStart` throws, and
+  `WebApplicationFactory` could then throw `ObjectDisposedException` instead of the validation error.
+- **Fix:** A shared `HostStartup` helper also reads the host's "Hosting failed to start" log (D-018). 21 stress runs
+  were clean afterwards. Production code was never wrong; the tests were.

@@ -18,9 +18,7 @@ public sealed class OptionsValidationTests
             builder.ConfigureAppConfiguration((_, config) =>
                 config.AddInMemoryCollection(new Dictionary<string, string?> { [key] = value })));
 
-        var ex = Record.Exception(() => factory.CreateClient());
-
-        var validation = FindOptionsValidationException(ex);
+        var validation = HostStartup.FindStartupValidationFailure(factory);
         Assert.NotNull(validation);
         Assert.Contains(key.Split(':')[1], validation.Message);
     }
@@ -33,18 +31,5 @@ public sealed class OptionsValidationTests
         var ex = Record.Exception(() => factory.CreateClient());
 
         Assert.Null(ex);
-    }
-
-    private static OptionsValidationException? FindOptionsValidationException(Exception? ex)
-    {
-        for (var current = ex; current is not null; current = current.InnerException)
-        {
-            if (current is OptionsValidationException ove) return ove;
-            if (current is AggregateException agg)
-            {
-                return agg.InnerExceptions.Select(FindOptionsValidationException).FirstOrDefault(e => e is not null);
-            }
-        }
-        return null;
     }
 }

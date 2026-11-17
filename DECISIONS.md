@@ -158,6 +158,15 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** The mock fixtures can drift from the contract (`TimeLabResponse` is the source of truth). Never part of the production bundle.
 - **Refs:** `frontend/dev/mockApi.js` · `frontend/vite.config.js`
 
+### D-018 — Startup-validation tests read the host's startup log, not only what `CreateClient()` throws
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** tests
+- **Context:** The `Host_fails_to_start_*` tests flaked under CPU load (23 of 24 runs failed under stress, 1 failure in normal use). With minimal hosting, `ValidateOnStart` throws on the `Program` thread and `app.Run()` disposes the host. If `WebApplicationFactory`'s `DeferredHost.StartAsync` runs after that, it throws `ObjectDisposedException` instead of the validation error. Production validation was always correct; only the tests could miss it.
+- **Options:** (a) retry · (b) turn off xUnit parallelism · (c) validate options on a plain `ServiceCollection` · (d) also capture the host's "Hosting failed to start" log.
+- **Decision:** (d), in a shared helper `HostStartup.FindStartupValidationFailure`.
+- **Why:** The test stays at the host level, so it still proves `ValidateOnStart` is wired, and the race is gone (21 stress runs clean).
+- **Trade-offs:** Relies on the generic host logging the startup failure, which it always has.
+- **Refs:** `backend/ClockManager.Tests/Infrastructure/HostStartup.cs`
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -199,6 +208,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Provider `detail`, raw body or parsed time in the public health check | Never included: names, outcome codes, RTTs, delta, code only | `TimeHealthEndpointTests.Never_exposes_provider_detail_payload_or_parsed_time` |
 | Time lab requested outside Development (Production, Staging, Testing) | 404; controller not discovered, `ITimeLab` not registered, no provider call | `TimeLabTests.Does_not_exist_outside_Development` |
 | Time lab when a punch would fail (disagree, all down) | Still 200; `decision.result = failed`, `code`, `httpStatus: 503` | `TimeLabTests.Development_returns_200_even_when_a_punch_would_get_503`, `Disagreement_is_a_failed_decision_*` |
+| Server process in another time zone or culture (E16) | No effect: NodaTime tzdb + invariant parsing. Full suite identical under Pacific/Kiritimati + th-TH, Pacific/Pago_Pago + ar-SA, Asia/Kathmandu + fa-IR | `HostEnvironmentOverrideTests` (env `CLOCKMANAGER_TEST_TZ` / `CLOCKMANAGER_TEST_CULTURE`), CI run with `TZ` set |
 | Time lab around DST (T6 repeated hour, T7 DST start) | Local time and offset from tzdb at the instant (02:30 +02:00 / 02:15 +01:00; 03:00 +02:00), even if the provider's offset says otherwise | `TimeLabTests.Local_time_and_offset_come_from_tzdb_around_DST` |
 
 ## Not done (out of scope)
@@ -216,7 +226,8 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-17 | Master plan picked FluentAssertions | v8+ needs a commercial license; not checked | Plain xUnit `Assert` (D-002), caught before any code | `6845736` |
 | 2026-11-17 | Clock guard was a regex scan only | Misses `using static` tricks; only runs if someone runs `verify` | Compile-time analyzer, RS0030 as an error (D-001) | `890849b` |
 | 2026-11-17 | Committed one file per tiny change, without showing each commit first | Too granular, and the user didn't review each commit before it landed | Commit convention in CLAUDE.md §6.1: one commit per task, user reviews every commit (later relaxed by the user for the deadline: autonomous commits, review at phase end, `59346cf`) | `7b60d51` |
-| 2026-11-17 | `TimeNowSource` took its name from the `Primary` config slot | With the roles swapped, time.now readings would be credited to "timeapi.io" in the audit trail. Found by the qa agent (QA-03) while writing step-2 tests | Fixed name `TimeNowSource.ProviderName = "time.now"`; regression test `Name_is_always_time_now_even_when_it_plays_the_secondary_role_QA03` | this commit |
+| 2026-11-17 | `TimeNowSource` took its name from the `Primary` config slot | With the roles swapped, time.now readings would be credited to "timeapi.io" in the audit trail. Found by the qa agent (QA-03) while writing step-2 tests | Fixed name `TimeNowSource.ProviderName = "time.now"`; regression test `Name_is_always_time_now_even_when_it_plays_the_secondary_role_QA03` | `4544b1d` |
+| 2026-11-17 | Startup-validation tests from Phase 1 steps 1–2 | Racy under CPU load (`WebApplicationFactory` disposed the host first → `ObjectDisposedException`), so they could fail without a bug. Found by the qa agent in step 4 | `HostStartup` helper reads the host's startup log (D-018) | this commit |
 
 ## Known limitations
 

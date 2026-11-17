@@ -119,7 +119,7 @@ public sealed class TrustedClockRegistrationTests
             builder.ConfigureAppConfiguration((_, config) =>
                 config.AddInMemoryCollection(new Dictionary<string, string?> { [key] = value })));
 
-        var validation = FindOptionsValidationException(Record.Exception(() => factory.CreateClient()));
+        var validation = HostStartup.FindStartupValidationFailure(factory);
 
         Assert.NotNull(validation);
         Assert.Contains(value, validation.Message);
@@ -175,17 +175,4 @@ public sealed class TrustedClockRegistrationTests
     }
 
     private static NodaTime.Instant Utc(string iso) => NodaTime.Text.InstantPattern.ExtendedIso.Parse(iso).GetValueOrThrow();
-
-    private static OptionsValidationException? FindOptionsValidationException(Exception? ex)
-    {
-        for (var current = ex; current is not null; current = current.InnerException)
-        {
-            if (current is OptionsValidationException ove) return ove;
-            if (current is AggregateException agg)
-            {
-                return agg.InnerExceptions.Select(FindOptionsValidationException).FirstOrDefault(e => e is not null);
-            }
-        }
-        return null;
-    }
 }

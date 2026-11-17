@@ -29,9 +29,7 @@ public sealed class TrustedClockOptionsTests
     {
         using var factory = WithConfig(new Dictionary<string, string?> { [key] = value });
 
-        var ex = Record.Exception(() => factory.CreateClient());
-
-        var validation = FindOptionsValidationException(ex);
+        var validation = HostStartup.FindStartupValidationFailure(factory);
         Assert.NotNull(validation);
         Assert.Contains(messageContains, validation.Message);
     }
@@ -42,7 +40,7 @@ public sealed class TrustedClockOptionsTests
         // TimeoutMs alone is in range, but now 1500 (threshold) >= 1000 (timeout).
         using var factory = WithConfig(new Dictionary<string, string?> { ["TrustedClock:TimeoutMs"] = "1000" });
 
-        var validation = FindOptionsValidationException(Record.Exception(() => factory.CreateClient()));
+        var validation = HostStartup.FindStartupValidationFailure(factory);
 
         Assert.NotNull(validation);
         Assert.Contains("must be less than TimeoutMs", validation.Message);
@@ -80,17 +78,4 @@ public sealed class TrustedClockOptionsTests
     private static WebApplicationFactory<Program> WithConfig(Dictionary<string, string?> values) =>
         new ApiFactory().WithWebHostBuilder(builder =>
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(values)));
-
-    private static OptionsValidationException? FindOptionsValidationException(Exception? ex)
-    {
-        for (var current = ex; current is not null; current = current.InnerException)
-        {
-            if (current is OptionsValidationException ove) return ove;
-            if (current is AggregateException agg)
-            {
-                return agg.InnerExceptions.Select(FindOptionsValidationException).FirstOrDefault(e => e is not null);
-            }
-        }
-        return null;
-    }
 }
