@@ -72,7 +72,8 @@ create databases.
     dotnet test backend/ClockManager.sln --filter Category=Integration
 
 If no server is reachable, the integration tests are **skipped** locally (the reason is shown), but with
-`CI=true` they **fail**.
+`CI=true` they **fail**. GitHub Actions starts a SQL Server 2022 container with a password generated in each
+run, so the integration tests run on every push (D-026).
 
 ## Tests and quality gate
 

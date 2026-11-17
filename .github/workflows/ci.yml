@@ -16,19 +16,38 @@ jobs:
   backend:
     name: Backend build + test
     runs-on: ubuntu-latest
-    # A SQL Server service container is added in Phase 2, together with the first
-    # integration tests that need it (see plans/00-master-plan.md, Phase 0).
     steps:
       - uses: actions/checkout@v4
+      # SQL Server for the integration tests (plans/02-schema.md §5, D-026). Started with `docker run`, not a
+      # `services:` container, because the sa password is generated inside this run: no secret is stored in the
+      # repo or in GitHub settings, and the value is masked in the logs. It boots while restore/build run.
+      - name: Start SQL Server container
+        run: |
+          SA_PASSWORD="Aa1!$(openssl rand -hex 16)"
+          echo "::add-mask::$SA_PASSWORD"
+          docker run -d --name mssql -p 1433:1433 \
+            -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SA_PASSWORD" \
+            mcr.microsoft.com/mssql/server:2022-latest
+          echo "SA_PASSWORD=$SA_PASSWORD" >> "$GITHUB_ENV"
+          echo "CLOCKMANAGER_TEST_SQL=Server=localhost,1433;User ID=sa;Password=$SA_PASSWORD;TrustServerCertificate=true" >> "$GITHUB_ENV"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
       - run: dotnet restore backend/ClockManager.sln
       - run: dotnet build backend/ClockManager.sln --no-restore --configuration Release
-      # TEMPORARY: the integration tests need SQL Server; the CI SQL container arrives in plan 02 step 2.
-      - run: dotnet test backend/ClockManager.sln --no-build --configuration Release --filter "Category!=Integration" --logger "trx" --results-directory TestResults
+      - name: Wait for SQL Server
+        run: |
+          for i in $(seq 1 60); do
+            if docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT 1" > /dev/null 2>&1; then
+              echo "SQL Server ready after $i tries"; exit 0
+            fi
+            sleep 2
+          done
+          echo "SQL Server did not start in time"; docker logs mssql; exit 1
+      # CI=true (set by GitHub) makes the integration tests FAIL instead of skip if SQL Server is unreachable.
+      - run: dotnet test backend/ClockManager.sln --no-build --configuration Release --logger "trx" --results-directory TestResults
       - name: Test again in an exotic time zone and culture (E16)
-        run: dotnet test backend/ClockManager.sln --no-build --configuration Release --filter "Category!=Integration" --logger "trx;LogFileName=tz.trx" --results-directory TestResults
+        run: dotnet test backend/ClockManager.sln --no-build --configuration Release --logger "trx;LogFileName=tz.trx" --results-directory TestResults
         env:
           TZ: Pacific/Kiritimati
           CLOCKMANAGER_TEST_TZ: Pacific/Kiritimati
