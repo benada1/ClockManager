@@ -14,7 +14,10 @@ public sealed class TrustedClockOptions : IValidatableObject
     [Range(500, 10_000)]
     public int TimeoutMs { get; set; } = 3000;
 
-    /// <summary>Two providers further apart than this are treated as disagreeing (used from step 2).</summary>
+    /// <summary>
+    /// Two providers further apart than this (after midpoint correction) disagree, unless their round trips alone
+    /// can explain the gap (D-008).
+    /// </summary>
     [Range(100, 30_000)]
     public int CrossCheckToleranceMs { get; set; } = 2000;
 
@@ -53,9 +56,13 @@ public sealed class TrustedClockOptions : IValidatableObject
     }
 }
 
-/// <summary>One external time provider: a display/log name and its base URL.</summary>
+/// <summary>One role (primary or secondary): which built-in provider plays it, and that provider's base URL.</summary>
 public sealed class TimeProviderEndpoint
 {
+    /// <summary>Provider names with a client in this build, matched exactly (ordinal).</summary>
+    internal static readonly IReadOnlyList<string> KnownProviders = [TimeNowSource.ProviderName, TimeApiIoSource.ProviderName];
+
+    /// <summary>One of <see cref="KnownProviders"/>.</summary>
     public string Name { get; set; } = "";
 
     /// <summary>Absolute http(s) URL ending in '/', so relative request paths are appended, not substituted.</summary>
@@ -66,6 +73,13 @@ public sealed class TimeProviderEndpoint
         if (string.IsNullOrWhiteSpace(Name))
         {
             yield return new ValidationResult($"{label}.Name is required.", [$"{label}.Name"]);
+        }
+        else if (!KnownProviders.Contains(Name, StringComparer.Ordinal))
+        {
+            // The name picks which built-in client plays this role, so it must match one exactly.
+            yield return new ValidationResult(
+                $"{label}.Name '{Name}' is not a known time provider (known: {string.Join(", ", KnownProviders)}).",
+                [$"{label}.Name"]);
         }
 
         if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri)

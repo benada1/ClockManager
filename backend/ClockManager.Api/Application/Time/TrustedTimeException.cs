@@ -4,7 +4,7 @@ namespace ClockManager.Api.Application.Time;
 
 /// <summary>What happened with one provider during a failed attempt, as a short reason code (no raw bodies).</summary>
 /// <param name="Name">Provider name, e.g. "time.now".</param>
-/// <param name="Outcome">Short reason code, e.g. "ok", "timeout", "http_error", "rate_limited", "invalid_response", "network_error".</param>
+/// <param name="Outcome">Short reason code, e.g. "ok", "timeout", "http_error", "rate_limited", "invalid_response", "network_error", "error" (the source threw).</param>
 public sealed record ProviderOutcome(string Name, string Outcome);
 
 /// <summary>

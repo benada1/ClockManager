@@ -58,6 +58,7 @@ internal sealed record TimeSourceFailure(
         TimeSourceFailureReason.RateLimited => "rate_limited",
         TimeSourceFailureReason.InvalidResponse => "invalid_response",
         TimeSourceFailureReason.NetworkError => "network_error",
+        TimeSourceFailureReason.Unexpected => "error",
         _ => throw new ArgumentOutOfRangeException(nameof(Reason), Reason, null),
     };
 }
@@ -78,4 +79,10 @@ internal enum TimeSourceFailureReason
 
     /// <summary>DNS, connection refused, TLS, connection reset, ...</summary>
     NetworkError,
+
+    /// <summary>
+    /// The source threw instead of returning a result (a bug, or a failure mode it doesn't map). Set by the
+    /// orchestrator, not by the source, so one broken source can't take the other one down with it (QA-06).
+    /// </summary>
+    Unexpected,
 }

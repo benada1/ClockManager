@@ -15,10 +15,6 @@ internal sealed class TimeNowSource : HttpTimeSource
 {
     internal const string Path = "developer/api/timezone/Europe/Zurich";
 
-    /// <summary>Plausible range for a punch, fixed in code: rule 1 forbids comparing with the server clock.</summary>
-    internal const int MinYear = 2026;
-    internal const int MaxYearExclusive = 2100;
-
     private static readonly Duration UnixTimeTolerance = Duration.FromSeconds(1);
     private static readonly OffsetPattern UtcOffsetPattern = OffsetPattern.CreateWithInvariantCulture("+HH:mm");
     private static readonly IReadOnlyCollection<string> Sensitive = ["client_ip"];
@@ -43,88 +39,69 @@ internal sealed class TimeNowSource : HttpTimeSource
 
     protected override ParseOutcome Parse(string body)
     {
-        JsonDocument document;
-        try
+        // A JSON object with distinct keys (a duplicated field has no single meaning, QA-07).
+        using var document = ProviderJson.ParseObject(body, out var jsonError);
+        if (document is null) return ParseOutcome.Invalid(jsonError!);
+
+        var root = document.RootElement;
+
+        if (!TryGetString(root, "timezone", out var zone)) return Missing("timezone");
+        if (!string.Equals(zone, ZurichTime.ZoneId, StringComparison.Ordinal))
         {
-            document = JsonDocument.Parse(body);
+            return ParseOutcome.Invalid($"timezone is '{zone}', expected '{ZurichTime.ZoneId}'");
         }
-        catch (JsonException)
+
+        // The instant: only a strict ISO 8601 UTC value ending in 'Z' is accepted.
+        if (!TryGetString(root, "utc_datetime", out var utcText)) return Missing("utc_datetime");
+        var utc = InstantPattern.ExtendedIso.Parse(utcText);
+        if (!utc.Success) return ParseOutcome.Invalid($"utc_datetime '{utcText}' is not ISO 8601 UTC");
+        var instant = utc.Value;
+
+        var year = instant.InUtc().Year;
+        if (year is < MinYear or >= MaxYearExclusive)
         {
-            return ParseOutcome.Invalid("body is not JSON");
+            return ParseOutcome.Invalid($"year {year} is outside [{MinYear}, {MaxYearExclusive})");
         }
 
-        using (document)
+        if (!ProviderJson.TryGetInt64(root, "unixtime", out var unixSeconds)) return Missing("unixtime");
+        if (unixSeconds is < -62_135_596_800 or > 253_402_300_799) // keeps FromUnixTimeSeconds in range
         {
-            var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return ParseOutcome.Invalid("body is not a JSON object");
-
-            if (!TryGetString(root, "timezone", out var zone)) return Missing("timezone");
-            if (!string.Equals(zone, ZurichTime.ZoneId, StringComparison.Ordinal))
-            {
-                return ParseOutcome.Invalid($"timezone is '{zone}', expected '{ZurichTime.ZoneId}'");
-            }
-
-            // The instant: only a strict ISO 8601 UTC value ending in 'Z' is accepted.
-            if (!TryGetString(root, "utc_datetime", out var utcText)) return Missing("utc_datetime");
-            var utc = InstantPattern.ExtendedIso.Parse(utcText);
-            if (!utc.Success) return ParseOutcome.Invalid($"utc_datetime '{utcText}' is not ISO 8601 UTC");
-            var instant = utc.Value;
-
-            var year = instant.InUtc().Year;
-            if (year is < MinYear or >= MaxYearExclusive)
-            {
-                return ParseOutcome.Invalid($"year {year} is outside [{MinYear}, {MaxYearExclusive})");
-            }
-
-            if (!root.TryGetProperty("unixtime", out var unixElement)
-                || unixElement.ValueKind != JsonValueKind.Number
-                || !unixElement.TryGetInt64(out var unixSeconds))
-            {
-                return Missing("unixtime");
-            }
-            if (unixSeconds is < -62_135_596_800 or > 253_402_300_799) // keeps FromUnixTimeSeconds in range
-            {
-                return ParseOutcome.Invalid($"unixtime {unixSeconds} is out of range");
-            }
-            var unixDelta = instant - Instant.FromUnixTimeSeconds(unixSeconds);
-            if (Duration.Max(unixDelta, -unixDelta) > UnixTimeTolerance)
-            {
-                return ParseOutcome.Invalid($"unixtime {unixSeconds} disagrees with utc_datetime '{utcText}'");
-            }
-
-            // The offset must be what tzdb says for Zurich at that instant: we check, we don't adopt.
-            var expectedOffset = _zurich.OffsetAt(instant);
-            if (!TryGetString(root, "utc_offset", out var offsetText)) return Missing("utc_offset");
-            var offset = UtcOffsetPattern.Parse(offsetText);
-            if (!offset.Success) return ParseOutcome.Invalid($"utc_offset '{offsetText}' is not +HH:mm");
-            if (offset.Value != expectedOffset)
-            {
-                return ParseOutcome.Invalid($"utc_offset {offsetText} does not match tzdb ({expectedOffset}) at {utcText}");
-            }
-
-            // The local datetime must be exactly the instant shown with that offset.
-            if (!TryGetString(root, "datetime", out var localText)) return Missing("datetime");
-            var local = OffsetDateTimePattern.ExtendedIso.Parse(localText);
-            if (!local.Success) return ParseOutcome.Invalid($"datetime '{localText}' is not ISO 8601 with an offset");
-            if (local.Value.Offset != expectedOffset || local.Value.ToInstant() != instant)
-            {
-                return ParseOutcome.Invalid($"datetime '{localText}' is not utc_datetime '{utcText}' at offset {expectedOffset}");
-            }
-
-            return ParseOutcome.Ok(instant, expectedOffset);
+            return ParseOutcome.Invalid($"unixtime {unixSeconds} is out of range");
         }
+        var unixDelta = instant - Instant.FromUnixTimeSeconds(unixSeconds);
+        if (Duration.Max(unixDelta, -unixDelta) > UnixTimeTolerance)
+        {
+            return ParseOutcome.Invalid($"unixtime {unixSeconds} disagrees with utc_datetime '{utcText}'");
+        }
+
+        // The offset must be what tzdb says for Zurich at that instant: we check, we don't adopt.
+        var expectedOffset = _zurich.OffsetAt(instant);
+        if (!TryGetString(root, "utc_offset", out var offsetText)) return Missing("utc_offset");
+        var offset = UtcOffsetPattern.Parse(offsetText);
+        if (!offset.Success) return ParseOutcome.Invalid($"utc_offset '{offsetText}' is not +HH:mm");
+        if (offset.Value != expectedOffset)
+        {
+            return ParseOutcome.Invalid($"utc_offset {offsetText} does not match tzdb ({expectedOffset}) at {utcText}");
+        }
+
+        // The local datetime must be exactly the instant shown with that offset.
+        if (!TryGetString(root, "datetime", out var localText)) return Missing("datetime");
+        var local = OffsetDateTimePattern.ExtendedIso.Parse(localText);
+        if (!local.Success) return ParseOutcome.Invalid($"datetime '{localText}' is not ISO 8601 with an offset");
+        if (local.Value.Offset != expectedOffset || local.Value.ToInstant() != instant)
+        {
+            return ParseOutcome.Invalid($"datetime '{localText}' is not utc_datetime '{utcText}' at offset {expectedOffset}");
+        }
+
+        return ParseOutcome.Ok(instant, expectedOffset);
     }
 
-    private static ParseOutcome Missing(string field) => ParseOutcome.Invalid($"'{field}' is missing or has the wrong type");
+    private static ParseOutcome Missing(string field) => ParseOutcome.Invalid(ProviderJson.Missing(field));
 
     private static bool TryGetString(JsonElement root, string name, out string value)
     {
-        if (root.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String)
-        {
-            value = element.GetString()!;
-            return true;
-        }
-        value = "";
-        return false;
+        var found = ProviderJson.TryGetString(root, name, out var text);
+        value = text ?? "";
+        return found;
     }
 }

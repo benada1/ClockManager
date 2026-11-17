@@ -1,6 +1,6 @@
 # 01 — Trusted clock
 
-**Status:** Approved 2026-11-17 (Q1–Q3 answered, see §8) · Step 1 implemented, awaiting commit review
+**Status:** Approved 2026-11-17 (Q1–Q3 answered, see §8) · Step 1 committed · Step 2 implemented (timeapi.io, orchestrator, DI; qa findings QA-01/04/05/06/07 handled)
 **Lead agent:** backend · **Supporting:** qa (failure-mode tests, adversarial review)
 **Master plan refs:** D1, D2, D3, D7, D9 · §4 "Time provider" · CLAUDE.md rule 1
 
@@ -90,6 +90,8 @@ public sealed record TrustedInstant(
 **Comparing two clocks fairly:** the two requests don't land at exactly the same moment. Each provider's
 value is compared after correcting for when its request was sent (the midpoint of its own round trip), so
 the network delay isn't mistaken for disagreement.
+*(Step 2, QA-04)* The midpoint method can't be more precise than `(RttA + RttB) / 2`, so "agrees" means
+`|delta| ≤ CrossCheckToleranceMs` **or** `|delta| < (RttA + RttB) / 2` (D-008).
 
 ### 4.3 Validation per provider (reject, never "fix")
 Common: HTTP 200, JSON body, required fields present, `timezone == "Europe/Zurich"`, year in a plausible

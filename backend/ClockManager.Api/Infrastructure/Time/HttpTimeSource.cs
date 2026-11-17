@@ -15,6 +15,10 @@ internal abstract class HttpTimeSource : ITimeSource
     /// <summary>Real bodies are ~400 bytes; anything far larger is not a time response.</summary>
     internal const int MaxBodyBytes = 16 * 1024;
 
+    /// <summary>Plausible UTC-year range for a punch, fixed in code: rule 1 forbids comparing with the server clock.</summary>
+    internal const int MinYear = 2026;
+    internal const int MaxYearExclusive = 2100;
+
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly HttpClient _http;

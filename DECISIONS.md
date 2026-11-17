@@ -54,10 +54,10 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
 - **Context:** Rule 1 requires an external Europe/Zurich time for every punch. We need a provider that gives an unambiguous instant, needs no secret, and has a fallback.
 - **Options:** (a) worldtimeapi.org (master plan's candidate) · (b) time.now · (c) timeapi.io · (d) timezonedb.com.
-- **Decision:** (b) primary, (c) secondary (client added in plan 01 step 2). (a) rejected: connection failed on 4 tries over 2026-11-17 (https and http). (d) rejected: needs an API key, so a secret to manage for no gain.
+- **Decision:** (b) primary, (c) secondary (`TimeApiIoSource`, plan 01 step 2). The config's `Primary.Name` / `Secondary.Name` pick which built-in client plays which role by exact name; an unknown name stops the host on startup. (a) rejected: connection failed on 4 tries over 2026-11-17 (https and http). (d) rejected: needs an API key, so a secret to manage for no gain.
 - **Why:** time.now sends `utc_datetime` ending in `Z` plus redundant `unixtime`, `datetime` with offset and `utc_offset`, so we can cross-validate one response without guessing. timeapi.io sends a local time without an offset; it's still useful as an independent second source.
 - **Trade-offs:** Both are free services with no SLA and no published rate limits. Strict validation means a format change on their side reads as an outage until we adapt (the opt-in live test `TimeNowLiveTests` catches it).
-- **Refs:** plans/01-trusted-clock.md §3, §4.3 · `TimeNowSourceTests` · fixtures in `backend/ClockManager.Tests/TestData/TimeNow/`
+- **Refs:** plans/01-trusted-clock.md §3, §4.3 · `TimeNowSourceTests` · `TimeApiIoSourceTests` · `TrustedClockRegistrationTests` · fixtures in `backend/ClockManager.Tests/TestData/`
 
 ### D-007 — NodaTime (bundled tzdb) instead of `TimeZoneInfo`
 - **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
@@ -68,6 +68,24 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** One more dependency; tzdb updates arrive with NodaTime releases (Zurich rules are stable). EF Core mapping of NodaTime types is a Phase 2 question for the db agent.
 - **Refs:** `Application/Time/ZurichTime.cs` · `ZurichTimeTests` · `backend/BannedSymbols.txt`
 
+### D-008 — Both providers on every punch, in parallel, cross-checked at the round-trip midpoints
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** A provider can be up but wrong. Plan 01 Q1. The two requests never land at the same moment, and a slow answer is less precise.
+- **Options:** (a) secondary only when the primary fails · (b) both on every punch, sequentially · (c) both on every punch, in parallel.
+- **Decision:** (c). Both fetches start before either is awaited. The primary's value is used, never an average. Delta = `(B.Instant − A.Instant) − ((B.Started + B.Rtt/2) − (A.Started + A.Rtt/2))`; monotonic timestamps are converted only through `IElapsedTimer` (QA-01: Stopwatch ticks are 1 ns on Linux, 100 ns on Windows). Agree if `|delta|` rounded to whole ms is `≤ CrossCheckToleranceMs` (2000, inclusive) **or** `< (RttA + RttB) / 2` (QA-04); the same rounded value is compared and reported as `CrossCheckDeltaMs` (QA-05). Disagree → 503 `time.providers_disagree`.
+- **Why:** (a) never catches a wrong-but-alive provider. (c) costs the slower call (~0.4 s typical), not the sum. Each reading was taken somewhere inside its own round trip, so two correct clocks can look up to `(RttA + RttB) / 2` apart; with two ~2.8 s answers a fixed 2 s tolerance would reject correct clocks. Reaching the bound exactly needs zero network delay one way, so the bound is exclusive.
+- **Trade-offs:** Two outbound calls per punch. With very slow answers (near the 3 s timeout) the effective tolerance grows to ~3 s; those readings are already flagged `LowPrecision`.
+- **Refs:** plans/01-trusted-clock.md §4.2 · `TrustedClockTests` (midpoint, tolerance, parallel) · `TrustedClockFindingsTests` (QA-04, QA-05)
+
+### D-009 — Single-source punches are accepted, marked `CrossCheckedBy = null`
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** Plan 01 Q2. When only one provider gives a valid answer, we can't cross-check.
+- **Options:** (a) refuse the punch (503) · (b) accept it and record that it wasn't cross-checked.
+- **Decision:** (b). Primary failed → secondary's value; secondary failed → primary's value; both with `CrossCheckedBy = null`, `CrossCheckDeltaMs = null`, logged at Warning. A source that **throws** (anything but the caller's cancellation) counts as that source failing with outcome `error` and is logged at Error with the exception (QA-06). Both failed → 503 `time.invalid_response` if either sent a bad body, else `time.unavailable`.
+- **Why:** (a) doubles the chance of a 503 with two free providers. A single source is still an external Europe/Zurich time, which is what rule 1 requires, and the stored `CrossCheckedBy = null` keeps it visible in the audit trail.
+- **Trade-offs:** A single provider that is wrong while the other is down goes unnoticed for that punch.
+- **Refs:** plans/01-trusted-clock.md §4.2, §8 · `TrustedClockTests.Falls_back_to_secondary_when_primary_fails_E3_E4`, `Accepts_primary_single_source_when_secondary_fails` · `TrustedClockFindingsTests` (QA-06)
+
 ### D-010 — Provider timeout 3 s, low-precision flag above 1.5 s
 - **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
 - **Context:** A punch waits on the provider. Measured on 2026-11-17 (~15 samples each): typically 0.33–0.42 s, spikes 0.5–1.1 s, and one burst where **both** providers took ~4 s at the same time.
@@ -76,6 +94,15 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Why:** 3 s covers every spike seen except the 4 s burst, which no sensible timeout would save; 2 s would have cut real 1.1 s+ tails close. 1.5 s marks readings whose uncertainty is worth recording.
 - **Trade-offs:** In the worst case a punch waits ~3 s before a 503. During a ~4 s burst like the one observed, punches fail closed.
 - **Refs:** plans/01-trusted-clock.md §3, §4.5 · `TrustedClockOptionsTests` · `TimeNowSourceTests.Slow_provider_is_reported_as_timeout_not_thrown`
+
+### D-011 — timeapi.io: derive the offset from `dstActive`, then require tzdb to allow it
+- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Context:** timeapi.io sends `dateTime` without an offset (`2026-11-17T14:18:43.8658902`). In the repeated October hour, `02:30` is two different instants.
+- **Options:** (a) resolve with tzdb alone (pick the earlier or later mapping) · (b) take the offset from `dstActive` (`true` → +02:00, `false` → +01:00) and require it to be one of tzdb's valid offsets for that local time (`MapLocal`) · (c) drop timeapi.io.
+- **Decision:** (b). No valid offset (the March gap) or an offset tzdb doesn't allow (e.g. `dstActive=true` in January, or `03:00 +01` on 2026-03-29) → `invalid_response`. Also required and checked: `timeZone` exactly `Europe/Zurich`; `dateTime` with seconds, 0–7 fraction digits, no offset/`Z`, invariant culture; `year…milliSeconds` equal to `dateTime`'s parts, where **`milliSeconds` is the truncated fraction** (the real provider sends 865 for `.8658902`, so it truncates; a rounded 866 means the fields don't describe the same time); UTC year in [2026, 2100).
+- **Why:** (a) would guess in the repeated hour, exactly what plan §4.3 forbids. The provider's own flag disambiguates; tzdb independently checks it. (c) would leave no cross-check.
+- **Trade-offs:** If timeapi.io ever changes the shape (offset added, milliseconds rounded), it reads as invalid until we adapt; time.now keeps serving (D-009).
+- **Refs:** plans/01-trusted-clock.md §4.3 · `TimeApiIoSourceTests` (`Resolves_repeated_hour_with_dst_flag_E11`, `Applies_tzdb_at_the_dst_boundaries`, `Rejects_milliSeconds_that_is_not_the_truncated_fraction`)
 
 ## Edge cases
 
@@ -95,6 +122,22 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Provider slower than `TimeoutMs` (headers or body) | `timeout` result, not an exception | `TimeNowSourceTests.Slow_provider_is_reported_as_timeout_not_thrown`, `Body_that_never_finishes_is_a_timeout` |
 | Caller cancels (client disconnects) during the provider call (E17, provider layer) | `OperationCanceledException` propagates; never reported as `timeout` | `TimeNowSourceTests.Propagates_caller_cancellation_E17` |
 | `client_ip` (our server's public IP) in the time.now body (E18) | Removed before storing `RawPayload`; payload capped at 1024 chars | `TimeNowSourceTests.Sanitizes_client_ip_E18`, `Truncates_raw_payload_to_1_KB` |
+| Both providers answer and agree (E1) | Primary's value, `CrossCheckedBy` = secondary, `CrossCheckDeltaMs` = midpoint-corrected delta | `TrustedClockTests.Accepts_primary_when_both_agree_E1` |
+| Providers disagree, e.g. 5 s apart (E2) | 503 `time.providers_disagree`, both outcomes `ok`; tolerance 2000 ms inclusive | `TrustedClockTests.Fails_closed_when_providers_disagree_E2`, `Tolerance_is_inclusive_at_2000_ms` |
+| One provider times out / 5xx / 429 / bad body (E3, E4) | The other provider's value, `CrossCheckedBy = null`; no retry (D-009) | `TrustedClockTests.Falls_back_to_secondary_when_primary_fails_E3_E4` |
+| Both fail (E5, E6) | 503 `time.invalid_response` if either sent a bad body, else `time.unavailable`; `providers` lists short codes in role order | `TrustedClockTests.Fails_closed_when_both_fail_E5_E6` |
+| Slow answer within the timeout, e.g. 1.8 s (E15) | Accepted, `LowPrecision = true` (RTT > 1500 ms) | `TrustedClockTests.Flags_slow_primary_response_as_low_precision_E15` |
+| Caller cancels while providers are pending (E17, orchestrator) | `OperationCanceledException`, even if one provider already answered; both tasks observed | `TrustedClockTests.Propagates_caller_cancellation_*_E17` |
+| Requests leave at different times / different RTTs | Compared at each round trip's midpoint, timestamps converted only via `IElapsedTimer` (QA-01, Linux ns ticks) | `TrustedClockTests.Corrects_for_*`, `Converts_timestamps_through_the_elapsed_timer_not_as_TimeSpan_ticks` |
+| Both answers slow, e.g. RTT 2.8 s each and 2.5 s apart (QA-04) | Agree: effective tolerance `max(2000, (RttA+RttB)/2)`, RTT bound exclusive. RTT 0.4 s each and 2.5 s apart → disagree | `TrustedClockFindingsTests.*_QA04` |
+| Delta just around the tolerance, e.g. 2000.5 ms (QA-05) | The rounded value (2001) is both compared and reported | `TrustedClockFindingsTests.Compares_the_same_rounded_delta_it_reports_QA05` |
+| A source throws instead of returning a result (QA-06) | That source = `error` (logged at Error with the exception); the other one still serves; both → `time.unavailable` | `TrustedClockFindingsTests.*_QA06` |
+| Body with a duplicated key, e.g. two `timeZone` values (QA-07) | `invalid_response` for both providers, any duplicated top-level key, even with equal values | `DuplicateKeyTests` |
+| timeapi.io repeated October hour: `02:30` with `dstActive` true/false (E11, T6) | 00:30Z (+02) / 01:30Z (+01), one hour apart, never guessed (D-011) | `TimeApiIoSourceTests.Resolves_repeated_hour_with_dst_flag_E11` |
+| timeapi.io local time in the March gap, 2026-03-29 02:30 (E13) | `invalid_response`, whatever `dstActive` says | `TimeApiIoSourceTests.Rejects_nonexistent_local_time_E13`, `Applies_tzdb_at_the_dst_boundaries` |
+| timeapi.io `dstActive` contradicts tzdb, e.g. `true` in January (E10) | `invalid_response` | `TimeApiIoSourceTests.Rejects_dst_flag_true_in_January_E10` |
+| timeapi.io redundant fields disagree with `dateTime`, or `milliSeconds` rounded instead of truncated | `invalid_response` | `TimeApiIoSourceTests.Rejects_redundant_field_that_disagrees_with_dateTime`, `Rejects_milliSeconds_that_is_not_the_truncated_fraction` |
+| timeapi.io `dateTime` with an offset, `Z`, 8 fraction digits or a culture format | `invalid_response`; only offset-less ISO is read | `TimeApiIoSourceTests.Rejects_dateTime_that_is_not_offset_less_iso` |
 
 ## Not done (out of scope)
 
@@ -115,4 +158,10 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 
 ## Known limitations
 
+- **A provider that answers with a WRONG time blocks all punches; a DEAD one does not.** If one provider is up but
+  off by more than the tolerance, every punch fails with 503 `time.providers_disagree` (we can't tell which one is
+  right, D-008), while a provider that is down only drops the cross-check (D-009). Mitigation: the `providers`
+  extension and the log name both providers, and `/health/time` (plan 01 step 3) will show it. There is no config
+  switch to drop the bad provider (swapping roles doesn't help: both are still asked). Not built: a third provider
+  to break the tie, or a "single provider" mode.
 - **Generic error codes come from the HTTP status.** Errors produced only by a status (`request.not_found`, `request.method_not_allowed`, ...) get a code mapped from the status. Specific codes come only from `AppException`.

@@ -65,15 +65,16 @@ public sealed class TrustedClockOptionsTests
     }
 
     [Fact]
-    public void Registers_time_now_as_a_time_source()
+    public void Registers_both_providers_as_time_sources()
     {
+        // Step 1 registered only time.now; step 2 adds timeapi.io. Exactly one source per known provider name.
         using var factory = new ApiFactory();
 
         var sources = factory.Services.GetServices<ITimeSource>().ToList();
 
-        var source = Assert.Single(sources);
-        Assert.IsType<TimeNowSource>(source);
-        Assert.Equal("time.now", source.Name);
+        Assert.Equal(2, sources.Count);
+        Assert.Contains(sources, s => s is TimeNowSource && s.Name == "time.now");
+        Assert.Contains(sources, s => s is TimeApiIoSource && s.Name == "timeapi.io");
     }
 
     private static WebApplicationFactory<Program> WithConfig(Dictionary<string, string?> values) =>
