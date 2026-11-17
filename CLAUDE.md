@@ -122,13 +122,37 @@ Docker SQL Server is an optional alternative, and the README must cover both.
 
 - **Plan before code** for any non-trivial feature: write `plans/NN-<feature>.md` (goal, scope,
   steps, risks/edge cases, test plan). Get approval, then build. Update the plan's status when done.
-- **Small, focused commits** with clear messages (`feat(api): ...`, `fix(ui): ...`, `test: ...`,
-  `docs: ...`). The commit history is graded: no huge "everything" commits.
+- **Commits** follow the convention in §6.1. The commit history is graded.
 - Before saying a task is done, run the `verify` skill (backend build + tests, frontend build + lint,
   clock guard). Report failures honestly.
 - **Record Claude Code corrections**: when the user corrects Claude or Claude's output had to be
-  fixed, add a short entry to `docs/claude-worklog.md` (what was asked, what went wrong, how it was fixed).
+  fixed, add a short entry to `docs/claude-worklog.md` (what was asked, what went wrong, how it was fixed)
+  and a row in the "Corrections to Claude's output" section of `DECISIONS.md`.
   This shows where the tool helped and where it needed fixing, and is part of the deliverable.
+
+### 6.1 Commit convention
+
+1. **One commit = one task, not one file.** A task that touches several files (code + its tests +
+   its config + its DECISIONS/README update) is **one** commit, reviewed as a whole. A phase normally
+   lands as a handful of commits (one per plan step), never one per file or per tiny tweak.
+   No "everything" commits either: two unrelated tasks are two commits.
+2. **The user reviews every commit before it lands.** Claude never commits on its own initiative.
+   It stops, shows the proposed commit (message, files grouped by purpose, a short "what and why"
+   per file, and the `verify` summary), and waits for approval. If the user asks for changes, apply them
+   and show the commit again.
+3. **Conventional Commits:** `feat(scope): ...`, `fix(scope): ...`, `test: ...`, `docs: ...`, `ci: ...`,
+   `build: ...`, `chore: ...`, `refactor: ...`. The subject says what the task achieves
+   (e.g. `feat(time): add external Zurich time provider with fallback and fail-closed handling`), and the
+   body explains why and references `D-NNN`. Never "WIP", "update files", "fix stuff".
+4. **Corrections are separate, visible commits.** When the user rejects or fixes Claude's approach,
+   that fix is its own commit saying what was wrong, e.g.
+   `fix(time): Claude parsed a local time without offset; use the UTC instant instead`.
+   Also log it in the worklog and DECISIONS.md (see above).
+5. **Every commit builds and passes `verify`.** Keep the `Co-Authored-By` trailer.
+6. **Never rewrite pushed history** (no force-push, no squashing what's on `main`). Tidying unpushed,
+   genuinely noisy commits is fine.
+7. **Before every push**, check the diff for secrets (connection strings with passwords, API keys,
+   local settings files).
 - Keep `README.md` and `DECISIONS.md` in sync with the code in the same change.
 
 ## 7. Agents (in `.claude/agents/`)

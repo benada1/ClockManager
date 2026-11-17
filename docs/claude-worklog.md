@@ -33,3 +33,14 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** Added Roslyn `BannedApiAnalyzers` (RS0030 as an error) through `backend/Directory.Build.props`.
   Checked it by adding a probe file with `DateTime.UtcNow`: the build failed. Removed the probe and the
   build was green again. The regex guard stays for the frontend, and CI runs both (D-001).
+
+## 2026-11-17 — Commits were too granular and not reviewed one by one
+
+- **Asked:** Execute Phase 0 and commit the work.
+- **What went wrong:** Claude split the work into many small commits (one for a single verify flag,
+  a separate commit for a one-paragraph plan tweak) and committed after only a general approval.
+  The user wants each commit to be a whole task that they review before it lands. Commits that are
+  too small also make it look like nobody was steering.
+- **Fix:** Added a commit convention to CLAUDE.md §6.1 (one commit per task, the user reviews every
+  commit, corrections as separate `fix:` commits, no rewriting pushed history). Pushed history was **not**
+  rewritten: the commits already on `main` stay as they are.

@@ -59,6 +59,18 @@ left out, and known limitations. Entries are added in the same change as the cod
 
 _None yet._
 
+## Corrections to Claude's output
+
+Where Claude Code's approach was wrong or had to be changed. Full story in `docs/claude-worklog.md`.
+From Phase 1 on, each correction to committed code is its own `fix:` commit.
+
+| Date | What Claude did | What was wrong | Fix | Commit |
+|---|---|---|---|---|
+| 2026-11-17 | Master plan listed phases without owners | The agents from CLAUDE.md §7 were never assigned to work | Added the "Who builds what" table | `fcd944e` |
+| 2026-11-17 | Master plan picked FluentAssertions | v8+ needs a commercial license; not checked | Plain xUnit `Assert` (D-002), caught before any code | `6845736` |
+| 2026-11-17 | Clock guard was a regex scan only | Misses `using static` tricks; only runs if someone runs `verify` | Compile-time analyzer, RS0030 as an error (D-001) | `890849b` |
+| 2026-11-17 | Committed one file per tiny change, without showing each commit first | Too granular, and the user didn't review each commit before it landed | Commit convention in CLAUDE.md §6.1: one commit per task, user reviews every commit | this commit |
+
 ## Known limitations
 
 - **Generic error codes come from the HTTP status.** Errors produced only by a status (`request.not_found`, `request.method_not_allowed`, ...) get a code mapped from the status. Specific codes come only from `AppException`.
