@@ -1,6 +1,6 @@
 # 09 — Deliverables polish
 
-**Status:** In progress 2026-11-18 · approved with defaults (CRLF recorded as a known nit, throwaway database for the clean-clone run) · Task 1 (clean clone) half done, see §7
+**Status:** In progress 2026-11-18 · approved with defaults (CRLF recorded as a known nit, throwaway database for the clean-clone run) · Task 1 (clean clone) done, tasks 2 to 7 next
 **Why:** Reviewers read the README, DECISIONS.md, the worklog, CLAUDE.md, `.claude/`, the plans and the commit history. Phases 0–8 built and tested the app; this phase makes sure
 what they read is true, consistent and easy to follow from a clean clone. No new features.
 
@@ -44,3 +44,5 @@ Scripted checks for the doc claims (D-numbers, test names in edge-case rows, has
 - Not finished: starting the API from the clone. My first try used `--no-launch-profile`, so it ran outside Development and correctly refused to start without `Auth:SigningKey` (not a README bug). Retry with plain `dotnet run` (or `ASPNETCORE_ENVIRONMENT=Development`) on a spare port (5397), then check seeding, signup and the seeded manager login, then `dotnet test` from the clone.
 - Cleanup still to do: drop database `ClockManager_CleanClone`, delete the scratchpad clone, make sure nothing listens on 5397.
 - Tasks 2 to 7 not started.
+
+**Task 1 finished (2026-11-18):** from a fresh clone and an empty database the README steps worked. Migrations, seed (manager, alice, bob, carol), `dotnet run` in Development, signup and a real punch on a spare port, all 1068 backend tests and the 100 frontend tests passed. Nothing in the README had to change for this path. The lint warning was real and is fixed (the first load no longer sets "loading" in an effect). The throwaway database and the clone are removed. Only the SQL Express path was run; LocalDB and Docker stay unrun (LocalDB is not installed here, Docker not tried).

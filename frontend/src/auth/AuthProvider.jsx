@@ -7,8 +7,8 @@ import { AuthContext } from './authContext.js'
 export default function AuthProvider({ children }) {
   const [state, setState] = useState({ phase: 'loading', user: null, notice: null })
 
-  const check = useCallback((signal) => {
-    setState((s) => ({ ...s, phase: 'loading' }))
+  // The first load starts as "loading" already; only a retry has to switch back to it.
+  const load = useCallback((signal) => {
     authApi
       .getMe({ signal })
       .then((user) => setState({ phase: 'in', user, notice: null }))
@@ -21,9 +21,9 @@ export default function AuthProvider({ children }) {
 
   useEffect(() => {
     const controller = new AbortController()
-    check(controller.signal)
+    load(controller.signal)
     return () => controller.abort()
-  }, [check])
+  }, [load])
 
   // Any later 401 means the session ended: back to login with an explanation.
   useEffect(() => {
@@ -37,7 +37,10 @@ export default function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       ...state,
-      retry: () => check(),
+      retry: () => {
+        setState((s) => ({ ...s, phase: 'loading' }))
+        load()
+      },
       async login(body) {
         const user = await authApi.login(body)
         setState({ phase: 'in', user, notice: null })
@@ -52,7 +55,7 @@ export default function AuthProvider({ children }) {
         setState({ phase: 'out', user: null, notice: null })
       },
     }),
-    [state, check],
+    [state, load],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
