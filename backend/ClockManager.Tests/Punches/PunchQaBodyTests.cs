@@ -80,42 +80,52 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
     }
 
     /// <summary>
-    /// Duplicate JSON member: System.Text.Json keeps the LAST value, so this runs clock-out. Observed, not asserted as
-    /// "wrong": the stored idempotency Intent is derived from the same parsed value, so it is consistent (see next test).
-    /// Another parser in front of the API (WAF, gateway) might read the FIRST member: see QA-17.
+    /// QA-17 / D-041: a member that appears twice is ambiguous (System.Text.Json would run the LAST one, a gateway reading the
+    /// FIRST would see another request), so it is a 400 with a fixed message. This replaces the earlier test that documented
+    /// "the last member wins and the stored idempotency intent matches it", which is no longer true.
     /// </summary>
+    [SqlServerTheory]
+    [InlineData("""{"intent":"clock-in","intent":"clock-out"}""", "intent")]            // different values
+    [InlineData("""{"intent":"clock-in","intent":"clock-in"}""", "intent")]             // same value
+    [InlineData("""{"intent":"clock-in","Intent":"clock-out"}""", "intent")]            // differing case = same member for the binder
+    [InlineData("""{"INTENT":"clock-in","intent":"clock-in"}""", "intent")]
+    [InlineData("""{"intent":"clock-in","intent":"clock-in","intent":"clock-out"}""", "intent")] // three
+    [InlineData("{\"inten\\u0074\":\"clock-in\",\"intent\":\"clock-out\"}", "intent")]  // escaped spelling (t = t) of the same name
+    [InlineData("""{"intent":"clock-in","time":1,"time":2}""", "time")]                  // duplicate unknown member
+    public async Task Duplicate_members_are_rejected_as_ambiguous_with_a_fixed_message(string body, string key)
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, body, user);
+
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+        foreach (var leak in new[] { "System.", "ClockManager.", "LineNumber", "BytePositionInLine", "Path: $", "$.", "duplicate JSON member", "could not be" })
+            Assert.False(reply.Text.Contains(leak, StringComparison.Ordinal), $"'{leak}' leaked: {reply.Text}");
+        var errors = reply.Body.GetProperty("errors");
+        Assert.Equal([key], errors.EnumerateObject().Select(p => p.Name).ToArray());
+        Assert.Equal([InvalidRequestResponse.DuplicateMessage], errors.GetProperty(key).EnumerateArray().Select(m => m.GetString()!).ToArray());
+        Assert.Equal(0, clock.Calls);
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+    }
+
     [SqlServerFact]
-    public async Task Duplicate_intent_members_run_the_LAST_one_and_the_stored_idempotency_intent_matches_it()
+    public async Task A_rejected_duplicate_body_stores_no_idempotency_record_so_the_same_key_can_punch_with_a_clean_body()
     {
         var clock = new FakeTrustedClock(FakeNow);
         await using var factory = new PunchApiFactory(database, clock);
         using var client = factory.CreateClient();
         var (employeeId, user) = await AddEmployeeAsync();
         var key = Guid.NewGuid().ToString();
-        await SendAsync(client, """{"intent":"clock-in"}""", user);
-        clock.Set("2026-01-12T15:30:00Z");
 
-        var reply = await SendAsync(client, """{"intent":"clock-in","intent":"clock-out"}""", user, key: key);
+        var bad = await SendAsync(client, """{"intent":"clock-in","intent":"clock-out"}""", user, key: key);
+        var good = await SendAsync(client, """{"intent":"clock-in"}""", user, key: key);
 
-        Assert.Equal(HttpStatusCode.Created, reply.Status);
-        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId, openOnly: true)); // it clocked OUT
-        var replay = await SendAsync(client, """{"intent":"clock-out"}""", user, key: key);
-        Assert.Equal(reply.Text, replay.Text); // stored as clock-out
-    }
-
-    [SqlServerFact(Skip = "QA-17 open: a body with a duplicate \"intent\" member is accepted (last one wins) instead of 400; parser differential risk. Expected: 400 request.invalid.")]
-    [Trait("Status", "KnownBug")]
-    public async Task Duplicate_intent_members_are_rejected_as_ambiguous()
-    {
-        var clock = new FakeTrustedClock(FakeNow);
-        await using var factory = new PunchApiFactory(database, clock);
-        using var client = factory.CreateClient();
-        var (employeeId, user) = await AddEmployeeAsync();
-
-        var reply = await SendAsync(client, """{"intent":"clock-in","intent":"clock-out"}""", user);
-
-        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
-        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+        Assert.Equal(HttpStatusCode.BadRequest, bad.Status);
+        Assert.Equal(HttpStatusCode.Created, good.Status);
+        Assert.Equal(1, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
     }
 
     [SqlServerFact]

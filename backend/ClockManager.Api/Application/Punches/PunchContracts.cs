@@ -18,10 +18,12 @@ public sealed record PunchResult(int Status, ShiftView Shift);
 /// <para>
 /// Read STRICTLY on purpose (D-029): any member other than <c>intent</c> (e.g. <c>"time"</c>, <c>"clockInUtc"</c>) makes the
 /// body invalid, so the request is a 400 <c>request.invalid</c> before any service code runs: nothing is saved and no
-/// provider is asked. The attribute applies to this type only; the rest of the API keeps the default JSON settings.
+/// provider is asked. A member that appears twice is a 400 as well (QA-17, D-041): <see cref="PunchRequestJsonConverter"/>
+/// reads this type, keeps the strict rule and rejects duplicates. It applies to this type only; the rest of the API keeps the
+/// default JSON settings.
 /// </para>
 /// </summary>
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+[JsonConverter(typeof(PunchRequestJsonConverter))]
 public sealed class PunchRequest
 {
     public const string ClockIn = "clock-in";

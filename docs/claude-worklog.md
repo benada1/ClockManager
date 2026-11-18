@@ -145,3 +145,15 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** one `InvalidModelStateResponseFactory` (`InvalidRequestResponse`, D-040) replaces every JSON-reader message with a fixed
   sentence keyed by the wire field name (or `body`), echoes an unknown member name only after cleaning and capping it, and still
   returns `request.invalid` / `application/problem+json`. The test is un-skipped and was shown to fail without the fix.
+
+## 2026-11-18 — a duplicate `intent` member was accepted and the last one won (QA-17)
+
+- **Asked:** Phase 3 step 1, the punch endpoint with a strict body (D-029).
+- **What went wrong:** Claude made the body strict about unknown members but did not think about a member that appears twice.
+  System.Text.Json runs the LAST one, so `{"intent":"clock-in","intent":"clock-out"}` clocked out, while a gateway or log reading
+  the first member would see a clock-in. A qa-slice test even recorded "last wins" as observed behaviour instead of asking if it was safe.
+- **Found by:** the qa agent in Phase 3 (QA-17), as a skipped known-bug test.
+- **Fix:** `PunchRequestJsonConverter` (D-041) pre-scans the object, compares names case-insensitively, and throws on a repeat; the
+  400 factory turns it into `intent: "must appear only once"`. The real read still uses the strict wire type. The test is un-skipped
+  and extended (same/different values, `Intent`, escaped name, three copies, duplicate unknown member) and was shown to fail without the fix.
+  Note: `JsonException.Path` is read-only, the constructor with a path argument is the way to set it.

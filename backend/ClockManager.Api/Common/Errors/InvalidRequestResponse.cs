@@ -24,6 +24,7 @@ public static partial class InvalidRequestResponse
 
     public const string BodyMessage = "must be a JSON object";
     public const string WrongTypeMessage = "has the wrong type or an invalid value";
+    public const string DuplicateMessage = "must appear only once";
     public const int MaxFieldNameLength = 40;
 
     public static IActionResult Create(ActionContext context)
@@ -58,6 +59,10 @@ public static partial class InvalidRequestResponse
                     {
                         AddBody();
                     }
+                    else if (IsDuplicateMember(error))
+                    {
+                        result.TryAddModelError(CamelCase(field), DuplicateMessage);
+                    }
                     else if (IsUnmappedMember(error))
                     {
                         result.TryAddModelError(field, $"unknown field '{field}' is not allowed; the server sets the time");
@@ -89,6 +94,11 @@ public static partial class InvalidRequestResponse
         || error.Exception is JsonException or Microsoft.AspNetCore.Mvc.Formatters.InputFormatterException
         || error.ErrorMessage.Contains("LineNumber", StringComparison.Ordinal)
         || error.ErrorMessage.Contains("could not be converted", StringComparison.Ordinal);
+
+    // Raised by PunchRequestJsonConverter (QA-17); its Path is the member name.
+    private static bool IsDuplicateMember(ModelError error) =>
+        error.ErrorMessage.Contains(Application.Punches.PunchRequestJsonConverter.DuplicateMarker, StringComparison.Ordinal)
+        || (error.Exception is not null && error.Exception.Message.Contains(Application.Punches.PunchRequestJsonConverter.DuplicateMarker, StringComparison.Ordinal));
 
     private static bool IsUnmappedMember(ModelError error) =>
         UnmappedMember().IsMatch(error.ErrorMessage) || (error.Exception is not null && UnmappedMember().IsMatch(error.Exception.Message));
