@@ -2,6 +2,14 @@
 
 Employee time clock (Clock In / Clock Out). ASP.NET Core + SQL Server + React.
 
+**Where to look**
+
+- `DECISIONS.md`: every decision (D-001 to D-081) with the alternatives and trade-offs, the edge cases and the test for each, what was not done, known limits, and a table of where Claude's output had to be corrected.
+- `plans/`: one plan per phase (goal, scope, risks, test plan, final status). `plans/00-master-plan.md` is the overview.
+- `docs/claude-worklog.md`: a short story of where Claude Code helped and where it needed fixing.
+- `CLAUDE.md` and `.claude/` (agents and skills): the rules the work followed. The rule that matters most: **punch times come only from the external Europe/Zurich time API, never from a local clock**.
+- `backend/ClockManager.Api` (API), `backend/ClockManager.Tests` (xUnit), `frontend/` (React).
+
 ## Prerequisites
 
 - **.NET 8 SDK** and **Node.js 22 or newer** (CI uses 22), **PowerShell 7** (for the `verify` script) and **git**.
@@ -82,7 +90,9 @@ If no server is reachable, the integration tests are **skipped** locally (the re
 `CI=true` they **fail**. GitHub Actions starts a SQL Server 2022 container with a password generated in each
 run, so the integration tests run on every push (D-026).
 
-## Try the app (Phases 4–5)
+## Try the app by hand
+
+**Honest note:** the screens were checked from the code, the mock scenarios and the tests, and the flows were run against the real backend with curl. The author has not looked at them in a browser, so this list is the manual check.
 
 Start the backend and the frontend (see Run locally), open http://localhost:5173 and check by hand:
 1. **Sign up** with a new username, then you land on the punch screen (signup logs you in).
@@ -91,10 +101,12 @@ Start the backend and the frontend (see Run locally), open http://localhost:5173
 4. **Clock out:** the screen shows "You clocked out at HH:mm (Zurich time)" and how long you worked.
 5. **Time provider down:** turn off the network and punch: you see "can't get a trusted time", nothing is saved, and Try again works later.
 6. **Log out**, then try the punch URL again: you are sent to the login page.
+7. **History:** open History in the header: today's shift is listed with its duration, and the week total matches.
+8. **Manager** (after setting the manager password, see Login): the Team and Problems lists load, and Correct on a shift asks for a reason and then shows "Corrected by a manager" in that employee's History.
 
 `npm run dev:mock` (in `frontend/`) shows every screen state without the backend, e.g. `?mock=forgotten`, `?mock=unavailable`, `?mock=conflict`, `?mock=expired`.
 
-## Login (Phase 4)
+## Login and signup
 
 Sign up and log in with `POST /api/auth/signup` and `POST /api/auth/login` (body `{ username, displayName, password }` or
 `{ username, password }`). The answer sets a **JWT in an HTTP-only cookie** (`clockmanager_auth`, 8 hours, no refresh),
@@ -112,7 +124,7 @@ Signup always creates an **Employee**; the manager account exists only through t
 - **Rate limits** (`RateLimits` section, D-054): 10 logins/signups per minute per IP and 60 punches per minute per user;
   more gives 429 `request.rate_limited` with a `Retry-After` header.
 
-## Punching (Phase 3)
+## Punching (API)
 
 `POST /api/punches` clocks the caller in or out. The body is **only** the intent; the server takes the time from
 the trusted clock. Any other field (e.g. `"time"`) is rejected with 400 (`DECISIONS.md` D-029).
@@ -154,14 +166,14 @@ providers afresh (D-035). The flag `forgotten_clock_out` appears when the open s
 (16 h, strictly). If no trusted time is available, the endpoint still answers 200 with `serverNow: null` and no time-based
 flag (D-036). Errors: 401 `auth.unauthenticated`, 403 `employee.inactive`.
 
-## History (Phase 6)
+## History
 
 `GET /api/me/shifts?from=2026-11-16&to=2026-11-22` (login cookie, Zurich dates, at most 31 days) returns your shifts grouped by day
 with day and week totals counted from the UTC instants. Without `from` and `to` it returns the Monday to Sunday week of your latest
 shift. A shift stays on the day it started (`endsNextDay` marks overnight ones), an open shift is listed but not counted, and a day
 with a clock change is noted (D-064..D-066). In the app, open **History** in the header.
 
-## Manager view (Phase 7)
+## Manager view
 
 Log in as a **Manager** (only through the seed: `dotnet user-secrets set "Seed:ManagerPassword" "<password>"`, then user `manager`) and
 open **Manager** in the header. You see the team (who is clocked in, warnings) and a list of problems (forgotten clock-outs, unusually long or
@@ -208,7 +220,7 @@ Keys: `TrustedClock:Warmup:Enabled` / `TimeoutMs`, and the pool settings under `
 `KeepAlivePingDelaySeconds`, `KeepAlivePingTimeoutSeconds`). Set `TrustedClock:Warmup:Enabled=false` to run
 offline. The tests turn it off, so no test touches the network.
 
-- **`GET http://localhost:5258/health/time`** (all environments): 200 when a punch would get a time
+- **`GET http://localhost:5258/health/time`** (all environments; also at `/api/health/time`, which the Vite dev proxy can reach): 200 when a punch would get a time
   right now, 503 otherwise, with each provider's status code and round trip. Cached for 10 s (D-012).
 - **Time lab** (Development only, D-013): http://localhost:5173/#/time-lab with an "Ask both providers"
   button, backed by `GET /api/dev/time-lab`. It shows each provider's raw answer, round trip, parsed
