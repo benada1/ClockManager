@@ -1,6 +1,6 @@
 # 00 — Master plan: ClockManager
 
-**Status:** Phases 0-8 done 2026-11-18 · Phase 9 next
+**Status:** Phases 0-9 done 2026-11-18 (Phase 9 polish: last gate and summary at the end of plans/09-polish.md) · The text below is the original plan; where reality changed, see "What changed since this plan" at the end
 **Owner:** ben + Claude Code
 **Scope:** The whole assignment. Each phase below gets its own detailed `plans/NN-<feature>.md`
 before any code is written for it.
@@ -209,7 +209,7 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 ### Phase 8 — QA pass (`qa` agent)
 - [x] The qa agent reviews each area against section 4 and writes failing tests and repro steps for anything missing.
 - [x] Fix the findings (backend/frontend agents), each with a test that fails before the fix.
-- [ ] Optional: Playwright e2e smoke (login → clock in → clock out → history).
+- [ ] Optional: Playwright e2e smoke (login → clock in → clock out → history). **Not done on purpose**, see DECISIONS "Not done".
 
 ### Phase 9 — Deliverables polish
 - [x] README: prerequisites, LocalDB setup, Docker SQL Server alternative, user-secrets, run backend and frontend, run tests, seeded logins.
@@ -230,3 +230,11 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 2. **Forgotten clock-out (> 16 h):** the employee can clock out themselves; the real trusted time is recorded and the shift is flagged for manager review.
 3. **Auth:** minimal cookie auth with seeded users and roles (D10).
 4. **Playwright e2e:** only if Phases 1–7 finish early; otherwise listed as "not done" in DECISIONS.md.
+
+## What changed since this plan
+The plan above was written first and not rewritten. Where it differs from the code, the code and DECISIONS.md win:
+- **Auth:** a JWT in an HTTP-only cookie, with open signup (always an Employee) and no password reset; the manager exists only through the seed (D-049..D-056). The plan's "no registration" and "cookie auth" lines are superseded.
+- **Time providers:** worldtimeapi was rejected; the primary is time.now and the secondary is timeapi.io (D-006).
+- **Playwright:** not done on purpose (DECISIONS "Not done").
+- **Review rhythm:** the early "the user reviews every commit" rule was relaxed to review at the end of each phase (CLAUDE.md §6.1). Some early commits therefore do not meet the later short-message rule, and two commits had a red CI; both are listed in the corrections table.
+- **`STUDY-NOTES.md`:** a private learning file for the author, not part of the deliverable, so it is not in the repo.

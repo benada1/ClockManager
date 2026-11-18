@@ -9,6 +9,8 @@ Employee time clock (Clock In / Clock Out). ASP.NET Core + SQL Server + React.
 - `docs/claude-worklog.md`: a short story of where Claude Code helped and where it needed fixing.
 - `CLAUDE.md` and `.claude/` (agents and skills): the rules the work followed. The rule that matters most: **punch times come only from the external Europe/Zurich time API, never from a local clock**.
 - `backend/ClockManager.Api` (API), `backend/ClockManager.Tests` (xUnit), `frontend/` (React).
+- `.claude/agents/` (backend, frontend, db, qa) and `.claude/skills/` (`record-decision`: how decisions are written; `verify`: the quality gate script; `zurich-time-cases`: verified DST instants and the test matrix).
+- Plans in order: `plans/01-trusted-clock.md`, `02-schema`, `03-punch-api`, `04-auth`, `05-ui-punch`, `06-history`, `07-manager`, `08-qa`, `09-polish`.
 
 ## Prerequisites
 
@@ -16,6 +18,8 @@ Employee time clock (Clock In / Clock Out). ASP.NET Core + SQL Server + React.
 - A **SQL Server**: Express (default), LocalDB or Docker, see Database setup.
 - One-time: `dotnet tool restore` (installs `dotnet-ef` as a repo-local tool) and `npm install` in `frontend/`.
 - First run order: set up the database, start the backend, start the frontend, open http://localhost:5173 and sign up.
+- The commands are PowerShell (the dev machine is Windows); CI runs the same tests on Linux. Only the SQL Express path was run by hand; LocalDB and Docker follow the same steps with another connection string.
+- Punching needs two live external time providers. If both are down when you look, the punch correctly fails with a 503 and nothing is saved: check `GET /api/health/time`, then try again later.
 
 ## Run locally
 
@@ -114,12 +118,12 @@ so scripts in the browser can't read it. `POST /api/auth/logout` clears it and `
 Signup always creates an **Employee**; the manager account exists only through the seed (D-049..D-053).
 
 - **Signing key:** set it once, it is never stored in git (Development makes a random one per run, so logins end when
-  the server restarts; any other environment refuses to start without it):
+  the server restarts, which is also why a restart logs you out; any other environment refuses to start without it):
 
       cd backend/ClockManager.Api
       dotnet user-secrets set "Auth:SigningKey" "<at least 32 random characters>"
 
-- **Demo manager login (optional, Development only):** `dotnet user-secrets set "Seed:ManagerPassword" "<password>"`, then
+- **Demo manager login (optional, Development only):** `dotnet user-secrets set "Seed:ManagerPassword" "<password>"`, **restart the backend** (the seed runs at startup), then
   log in as `manager`. The other seeded users (alice, bob, carol) have no password: create your own users with signup.
 - **Rate limits** (`RateLimits` section, D-054): 10 logins/signups per minute per IP and 60 punches per minute per user;
   more gives 429 `request.rate_limited` with a `Retry-After` header.

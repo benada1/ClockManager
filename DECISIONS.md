@@ -741,6 +741,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 
 - **No production deployment.** Nothing serves `frontend/dist`; a real server needs a front web server with HTTPS (README "Production").
 - **Out of scope for this assignment:** payroll, breaks, geofencing, SSO, offline punching, multi-tenant use and translations.
+- **No end-to-end browser test (Playwright).** Decided in Phase 8: no browser tool for now, so the screens were never opened by the author; the README has the manual list.
 - **No component or browser tests for the frontend.** Only the punch logic is tested (Vitest, D-060); the screens are checked through the mock scenarios and the manual list in the README.
 
 ## Corrections to Claude's output
@@ -778,7 +779,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-18 | The problems list indexed the first flag of every row | One row with no flag would crash the whole manager list | Such a row shows as "unknown" | `3783e19` |
 | 2026-11-18 | CLAUDE.md listed the stack twice | Looked like a bad merge in a file reviewers read | One line kept | `7517ef0` |
 | 2026-11-18 | A lint warning was left in the login component although CLAUDE.md says lint must be clean | Found by the clean-clone run in Phase 9 | The first load no longer sets state in an effect | `dc5a0a6` |
-| 2026-11-18 | A skill example pointed at a plan file and a test name that do not exist | Found by the Phase 9 reference check | Points at the real plan and test | see the worklog |
+| 2026-11-18 | A skill example pointed at a plan file and a test name that do not exist | Found by the Phase 9 reference check | Points at the real plan and test | `b67115d` |
 
 ## Known limitations
 
