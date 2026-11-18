@@ -113,6 +113,7 @@ describe('saving a correction', () => {
     expect(describeCorrectionFailure(apiError(409, 'correction.overlap')).errors.newTime).toMatch(/overlaps/)
     expect(describeCorrectionFailure(apiError(409, 'correction.shift_still_running')).errors.newTime).toMatch(/still be running/)
     expect(describeCorrectionFailure(apiError(422, 'correction.in_future')).errors.newTime).toMatch(/future/)
+    expect(describeCorrectionFailure(apiError(422, 'correction.unchanged')).errors.newTime).toMatch(/already the current time/)
     expect(describeCorrectionFailure(apiError(422, 'correction.invalid_order')).errors.newTime).toMatch(/later than clock in/)
     const invalid = apiError(400, 'request.invalid', { errors: { Reason: ['must be 5 to 500 characters'] } })
     expect(describeCorrectionFailure(invalid)).toEqual({ place: 'fields', errors: { reason: 'must be 5 to 500 characters' } })

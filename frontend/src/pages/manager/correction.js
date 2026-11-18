@@ -49,6 +49,7 @@ const FIELD_ERRORS = {
   'correction.shift_still_running': 'This shift may still be running. You can only close a shift that has been open for a very long time.',
   'correction.in_future': 'This time is in the future. Choose a time that has already passed.',
   'correction.invalid_order': 'Clock out must be later than clock in.',
+  'correction.unchanged': 'This is already the current time. Change it, or cancel.',
 }
 
 /**
