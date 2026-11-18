@@ -1,6 +1,6 @@
 # 06 — History: my shifts by week
 
-**Status:** Draft 2026-11-18, waiting for approval · **Lead agents:** backend, then frontend (built in parallel against the contract below)
+**Status:** Done 2026-11-18 · Backend endpoint (D-064..D-066) and History page (`33cece4`, D-061..D-063) · Still to do by hand: look at the page in a browser
 **Refs:** master plan D4 (work date = Zurich date of the clock-in), §4 overnight and DST cases · CLAUDE.md rules 1 and 2
 
 ## 1. Goal

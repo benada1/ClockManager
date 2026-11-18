@@ -491,6 +491,23 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** An open shift is shown as "Still open: not counted until you clock out", with no duration, and the totals count closed shifts only (as the server sends them). Times show their offset ("02:30 UTC+2 to 02:15 UTC+1") on clock-change days.
 - **Trade-offs:** A long-open shift can make a week look low; a hint next to the total explains it.
 
+### D-064 — History endpoint: a range with a default week and a 31-day cap
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Options:** (a) a fixed week parameter · (b) a free `from`/`to` range with a default week · (c) paging by shift.
+- **Decision:** (b). Without parameters the server returns the Monday to Sunday week that contains the work date of the employee's latest shift. At most 31 days. Shifts are chosen by their Zurich clock-in date, so the existing index is enough (no migration).
+- **Why:** The UI can step weeks with plain date arithmetic, the query stays bounded, and the default needs no clock.
+- **Trade-offs:** Totals follow the requested range only.
+
+### D-065 — History dates are read as text, with fixed error messages
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** `from` and `to` are parsed by us as strict `yyyy-MM-dd` (years 1900–2200), given together or not at all; an empty value counts as given and invalid. The 400 uses fixed sentences and never echoes the input.
+- **Why:** Binding to a date type would echo client text and give an unstable message (same reasoning as D-040).
+
+### D-066 — Open shifts and clock-change days in history
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** An open shift is listed (`open: true`, no duration) and never counted in totals; it gets `forgotten_clock_out` only when a trusted time exists (same rule as D-036), otherwise no flag and still 200. A day gets the note `dst_change` when its length from the time zone rules is not 24 hours; no dates are hard-coded. Durations are from the UTC instants.
+- **Trade-offs:** An open shift's hours are missing from the week total until it is closed.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -600,6 +617,11 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Two signups with the same name at once | The unique index gives one 409 | `AuthApiTests` |
 | Missing or short signing key outside Development | The host refuses to start | `AuthHostTests` |
 | Not logged in and a bad body or no `Idempotency-Key` | 401 comes before 400 | `AuthApiTests` |
+| Week with the spring clock change | Duration from UTC, so a shift across it is 7 h; the day is noted `dst_change` | `ShiftHistoryApiTests.Spring_dst_week_*` |
+| Week with the autumn clock change | 9 h counted; a shift inside the repeated hour is 45 min with both offsets shown; the 25-hour day is noted | `ShiftHistoryApiTests.Autumn_dst_week_*` |
+| Shift across New Year or Sunday night to Monday | Stays on the Zurich date and week of its clock-in; `endsNextDay` is true | `A_year_boundary_week_*`, `A_sunday_night_shift_*` |
+| Open shift in the range | Listed, not counted; forgotten flag only with a trusted time | `An_open_shift_is_listed_*`, `An_old_open_shift_*` |
+| `from` or `to` missing, empty, wrong format, 32 days | 400 `request.invalid` with a fixed message; 31 days is accepted | `Bad_dates_are_a_400_*` |
 
 ## Not done (out of scope)
 

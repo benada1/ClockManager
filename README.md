@@ -147,6 +147,13 @@ providers afresh (D-035). The flag `forgotten_clock_out` appears when the open s
 (16 h, strictly). If no trusted time is available, the endpoint still answers 200 with `serverNow: null` and no time-based
 flag (D-036). Errors: 401 `auth.unauthenticated`, 403 `employee.inactive`.
 
+## History (Phase 6)
+
+`GET /api/me/shifts?from=2026-11-16&to=2026-11-22` (login cookie, Zurich dates, at most 31 days) returns your shifts grouped by day
+with day and week totals counted from the UTC instants. Without `from` and `to` it returns the Monday to Sunday week of your latest
+shift. A shift stays on the day it started (`endsNextDay` marks overnight ones), an open shift is listed but not counted, and a day
+with a clock change is noted (D-064..D-066). In the app, open **History** in the header.
+
 ## Tests and quality gate
 
     dotnet test backend/ClockManager.sln

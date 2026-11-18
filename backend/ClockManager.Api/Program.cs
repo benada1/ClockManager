@@ -33,6 +33,7 @@ builder.Services.AddScoped<PunchService>();
 // The status endpoint's cached server time: display and flags only, never a record (D-035). PunchService doesn't use it.
 builder.Services.AddServerNow();
 builder.Services.AddScoped<StatusService>();
+builder.Services.AddScoped<ClockManager.Api.Application.History.ShiftHistoryService>();
 
 builder.Services.AddOptions<ShiftRulesOptions>()
     .BindConfiguration(ShiftRulesOptions.SectionName)
