@@ -59,10 +59,12 @@ public sealed class PunchService(
                 _ => throw new ArgumentOutOfRangeException(nameof(intent), intent, "Unknown intent."),
             };
         }
-        catch (AppException ex) when (ex.Code is ErrorCodes.ShiftAlreadyOpen or ErrorCodes.ShiftNotOpen)
+        catch (AppException ex) when (ex.Code is ErrorCodes.ShiftAlreadyOpen or ErrorCodes.ShiftNotOpen or ErrorCodes.TimeWentBackwards)
         {
             // A 409 may only mean "my twin request with the same key won the race" (double click, a retry racing the
             // original). Then the twin's stored record exists by now: answer with it instead of the conflict.
+            // time.went_backwards is included as a safety net (D-043): if the twin's commit was the reason the guard
+            // refused, its stored record answers us too. With no record the original error stands.
             var winner = await FindRecordAsync(employee.Id, key, ct);
             if (winner is null) throw;
             logger.LogInformation(
@@ -74,9 +76,10 @@ public sealed class PunchService(
     private async Task<PunchResult> ClockInAsync(CurrentEmployee employee, Guid key, CancellationToken ct)
     {
         // 3. State check (fast path only), and the latest punch as it was before the provider call.
+        //    The snapshot is read FIRST (D-043): it can then never be newer than the state it is paired with.
+        var lastBefore = await LastPunchAsync(employee.Id, ct);
         var open = await FindOpenShiftAsync(employee.Id, tracked: false, ct);
         if (open is not null) throw PunchErrors.AlreadyOpen(ShiftViewMapper.ToView(open, rules.Value));
-        var lastBefore = await LastPunchAsync(employee.Id, ct);
 
         // 4. Trusted time (TrustedTimeException → 503). No transaction is open. Range-checked and floored to a DB tick (D-042).
         var trusted = TrustedInstantRules.Normalize(await trustedClock.GetNowAsync(ct));
@@ -120,8 +123,9 @@ public sealed class PunchService(
     {
         // 3. State check. The shift is tracked with the RowVersion read here: if anyone changes or closes it before our
         //    UPDATE, the UPDATE matches no row and EF throws DbUpdateConcurrencyException.
-        var shift = await FindOpenShiftAsync(employee.Id, tracked: true, ct) ?? throw PunchErrors.NotOpen();
+        //    The snapshot is read FIRST (D-043), see ClockInAsync.
         var lastBefore = await LastPunchAsync(employee.Id, ct);
+        var shift = await FindOpenShiftAsync(employee.Id, tracked: true, ct) ?? throw PunchErrors.NotOpen();
 
         // 4. Trusted time. No transaction is open. Range-checked and floored to a DB tick (D-042).
         var trusted = TrustedInstantRules.Normalize(await trustedClock.GetNowAsync(ct));

@@ -170,3 +170,14 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
   `time.invalid_response` (the window constant now lives there and the sources reuse it) and floors the instant to a tick; the
   guard and the stamp use the floored value (D-042). Both tests are un-skipped and were shown to fail without the fix
   (500 instead of 503); boundary and round-trip tests were added.
+
+## 2026-11-18 — the last-punch snapshot was read after the state check (QA-24, QA-15)
+
+- **Asked:** Phase 3 step 2, the punch service with the race handling of D-030 and D-032.
+- **What went wrong:** Claude read the open shift first and the employee's last punch after it. If the winning twin committed in
+  between, the loser's "before" snapshot already held the winner's instant; with an equal trusted instant the guard answered 503
+  `time.went_backwards` instead of 409 (different key) or the stored 201 (same key). The replay catch only handled 409s.
+- **Found by:** the qa agent (QA-24, QA-15): four skipped `QA24_*` storm tests that failed about 3 of 4 runs.
+- **Fix:** the snapshot is read before the state check, so it can never be newer than the state it is paired with, and
+  `time.went_backwards` also triggers the stored-record replay (D-043). The tests are un-skipped, stable over 10 runs, and fail
+  without the fix; the lenient twins that tolerated the 503 were tightened.

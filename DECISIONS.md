@@ -370,6 +370,15 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** A sub-tick difference is now 503 `went_backwards` (the instant is not strictly later after flooring), which is correct for storage but looks odd for a provider that is only 50 ns ahead. The window is fixed in code, so it needs a code change in 2100 (accepted, same as before). An in-range but wrong time (e.g. 2099) is still accepted: see the far-future edge-case row.
 - **Refs:** plans/03-punch-api.md · `Application/Time/TrustedInstantRules.cs` · `PunchQaGuardTests.Clock_out_less_than_one_database_tick_*`, `Clock_out_exactly_one_tick_after_*`, `A_sub_tick_instant_is_floored_*`, `An_absurd_instant_from_the_clock_*`, `The_plausible_window_boundaries_are_exact`
 
+### D-043 — The last-punch snapshot is read BEFORE the state check, and a same-key twin is replayed also after `went_backwards` (QA-24, QA-15)
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Context:** `ClockInAsync`/`ClockOutAsync` read the open shift first and the last-punch snapshot (`lastBefore`) after it. If the winning twin committed in between, `lastBefore` already held the winner's instant; with an equal trusted instant (second-precision or cached provider) the guard saw "same punch as before" and answered 503 `time.went_backwards` ("Nothing was recorded") instead of 409 (different key) or the stored 201 (same key, D-032). It failed about 3 of 4 runs of the 30-request storms.
+- **Options:** (a) reorder: snapshot first, then state check · (b) keep the order, and on `went_backwards` re-check the idempotency record and the state · (c) both · (d) one query that reads both, or a snapshot-isolation transaction.
+- **Decision:** (c). (a) is the cause fix: with the snapshot older than or equal to the state, a winner that commits after the snapshot is either seen by the state check (409 `already_open`/`not_open`, replayed by `PunchAsync` for the same key) or leaves `lastNow != lastBefore` (`PunchedMeanwhile` → the same 409 path). `went_backwards` now means "no punch of this employee appeared since the snapshot", i.e. the time source is wrong. (b) is a small safety net: `time.went_backwards` joins the 409 codes in the `PunchAsync` catch, so a stored record under (employee, key) is replayed; with no record the 503 stands. Lookups stay scoped by `employee.Id` + key, so nothing leaks across employees.
+- **Why:** (d) needs a transaction or isolation level around a read that precedes a 3 s HTTP call (D-028 forbids holding one), or a combined query that is harder to read. Reordering costs nothing and is easy to reason about. (b) alone would leave the different-key loser with a 503.
+- **Trade-offs:** A race where another tab closes and reopens the shift between snapshot and state check gives 409 `not_open` (conservative, nothing saved). A real backwards clock with no concurrent punch is still 503 (`PunchQaGuardTests`). Does not fix QA-23 (guard not atomic with the INSERT).
+- **Refs:** plans/03-punch-api.md · `Application/Punches/PunchService.cs` · `PunchQaConcurrencyTests.QA24_*` and their twins (run 10 times in a row, stable)
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -468,7 +477,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Bob uses alice's key | Keys are scoped per employee: bob gets his normal result, no 422, no leak | `PunchQaKeyTests.Bob_using_alices_key_*` |
 | Client-supplied time (extra JSON keys, `?time=`, `Date` / `X-Forwarded-*` headers) | Extra keys give 400; query and headers are ignored; the stored time equals the trusted clock | `PunchQaBodyTests.Bad_body_*`, `Query_string_time_and_header_dates_are_ignored_*` |
 | Clock-out 1 ms after the clock-in | Accepted; 0 s duration, flagged `short_shift` | `PunchQaGuardTests.Clock_out_one_millisecond_after_*` |
-| Race loser's last-punch snapshot is read after the state check, and its trusted instant equals the winner's | Today 503 `time.went_backwards` (even for a same-key twin) instead of 409 or the idempotent replay | open (`QA24_*`, skipped) |
+| Race loser's trusted instant equals the winner's (second-precision provider, cached time) | Snapshot is read first (D-043): the loser gets 409 `already_open`/`not_open`, a same-key twin gets the stored 201 replay | `QA24_*` (10 runs stable) |
 | A punch stalls between the monotonic guard and its INSERT while another tab punches in + out | Today overlapping or touching shifts are possible; the DB has no cross-shift ordering constraint | open (`QA23_a_storm_never_leaves_overlapping_or_touching_shifts`, skipped) |
 | 409 `shift.already_open` when the other tab's shift is already closed again | Today `openShift: null` with the "clock out" wording | open (`QA26_*`, skipped) |
 | Client abort while the DB write is in flight | Rolled back, no shift and no record, the same key works afterwards; EF logs an Error line | `Abort_while_the_INSERT_waits_on_the_database_rolls_back_and_the_same_key_then_works`; log noise open (`QA25_*`, skipped) |
@@ -535,12 +544,11 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
   follows the column collation (case-insensitive); the only writer is `PunchService.SaveShiftAndRecordAsync`, which
   writes the exact wire values. That method uses a manual transaction: if `EnableRetryOnFailure` is ever turned on, it
   must be wrapped in `CreateExecutionStrategy().ExecuteAsync`.
-- **A same-key twin can answer 503 once instead of replaying (QA-15).** In a very narrow window (twin A commits between
-  twin B's state check and B's last-punch read, and B's trusted time is not later than A's), B gets 503
-  `time.went_backwards`. Nothing is wrong at rest: the client retries with the same key and gets A's stored answer.
+- **A same-key twin can answer 503 once instead of replaying (QA-15): resolved by D-043.** The snapshot is read before the state check and `went_backwards` is replayed from the stored record.
 - **One consistently wrong far-future reading inside [2026, 2100) is accepted (qa slice A).** If both providers agree on a
   wrong future time (e.g. 2099-12-31), the punch is saved and every later honest punch is 503 `time.went_backwards` until
   a manager corrects it. Rule 1 forbids bounding it with the local clock, so the defences are the two-provider
   cross-check and each source's year window. Recovery needs the manager correction path with an audit trail (Phase 7).
 | 2026-11-18 | Phase 1 exception handling used `UseExceptionHandler` + `IExceptionHandler` and assumed our handler was the only logger | On .NET 8 the framework middleware logs every exception at Error before our handler runs, so every double click or provider outage logged an Error. Found by the qa agent (QA-20) | `AppExceptionMiddleware` handles `AppException` first (D-038); the QA-20 test is un-skipped | `this commit` |
 | 2026-11-18 | Step 2 compared and saved the trusted instant as the clock returned it, and left the range to the time sources | Nanoseconds vs 100 ns database ticks: a sub-tick-later instant was stored equal and the CHECK gave a 500; an out-of-range instant from another clock would give a 500 too. Found by the qa agent (QA-21, QA-22) | `TrustedInstantRules.Normalize` after the clock call (D-042); both tests un-skipped, shown to fail without the fix | `this commit` |
+| 2026-11-18 | Step 2 read the open shift first and the last-punch snapshot after it, and the replay catch only handled 409s | The race loser could see the winner's instant in its "before" snapshot and answer 503 `time.went_backwards` instead of 409 or the same-key replay (failed about 3 of 4 storm runs). Found by the qa agent (QA-24, QA-15) | Snapshot first, then state check; the replay catch also covers `went_backwards` (D-043); four `QA24_*` tests un-skipped, shown to fail without the fix | `this commit` |

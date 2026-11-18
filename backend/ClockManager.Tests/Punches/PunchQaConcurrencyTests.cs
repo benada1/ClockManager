@@ -33,18 +33,13 @@ public sealed class PunchQaConcurrencyTests(MigratedDatabaseFixture database) : 
 
         var created = replies.Where(r => r.Status == HttpStatusCode.Created).ToList();
         Assert.NotEmpty(created);
-        Assert.All(replies.Where(r => r.Status != HttpStatusCode.Created), r =>
-        {
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, r.Status); // QA-24: should have been the replay
-            Assert.Equal(ErrorCodes.TimeWentBackwards, r.Body.GetProperty("code").GetString());
-        });
+        Assert.Equal(replies.Length, created.Count); // QA-24 fixed (D-043): no 503 any more, every twin gets the replay
         Assert.Single(created.Select(r => r.Text).Distinct(StringComparer.Ordinal));
         Assert.Equal(1, await Count("Shifts", employeeId));
         Assert.Equal(1, await Count("IdempotencyRecords", employeeId));
     }
 
-    [SqlServerTheory(Skip = "QA-24 open: a parallel request with the SAME key can get 503 time.went_backwards instead of the stored 201 (same root cause: last-punch snapshot after the state check; the replay catch only handles 409s).")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerTheory]
     [InlineData(1)]
     [InlineData(2)]
     public async Task QA24_Thirty_parallel_clock_ins_with_the_SAME_key_all_get_the_same_201(int round)
@@ -88,15 +83,14 @@ public sealed class PunchQaConcurrencyTests(MigratedDatabaseFixture database) : 
         var winner = Assert.Single(replies, r => r.Status == HttpStatusCode.Created);
         Assert.All(replies.Where(r => r != winner), r =>
         {
-            Assert.Contains(r.Status, new[] { HttpStatusCode.Conflict, HttpStatusCode.ServiceUnavailable });
-            Assert.Contains(r.Body.GetProperty("code").GetString(), new[] { ErrorCodes.ShiftAlreadyOpen, ErrorCodes.TimeWentBackwards });
+            Assert.Equal(HttpStatusCode.Conflict, r.Status); // QA-24 fixed (D-043): no more 503 for a race loser
+            Assert.Equal(ErrorCodes.ShiftAlreadyOpen, r.Body.GetProperty("code").GetString());
         });
         Assert.Equal(1, await Count("Shifts", employeeId));
         Assert.Equal(1, await Count("IdempotencyRecords", employeeId));
     }
 
-    [SqlServerTheory(Skip = "QA-24 open: the loser of a clock-in race can get 503 time.went_backwards instead of 409 shift.already_open (last-punch snapshot is read after the state check).")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerTheory]
     [InlineData(1)]
     [InlineData(2)]
     public async Task QA24_Thirty_parallel_clock_ins_with_DIFFERENT_keys_give_exactly_one_201_and_every_loser_409(int round)
