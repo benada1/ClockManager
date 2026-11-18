@@ -2,7 +2,7 @@ const VARIANTS = {
   primary: 'bg-accent text-white border-accent hover:bg-accent-strong hover:border-accent-strong',
   secondary: 'bg-surface text-ink border-line-strong hover:bg-canvas',
   quiet: 'bg-transparent text-accent border-transparent hover:bg-accent-soft',
-  onAccent: 'bg-surface text-accent-strong border-surface hover:bg-accent-soft hover:border-accent-soft', // sits on an accent block
+  onAccent: 'bg-surface text-accent-strong border-surface hover:bg-accent-soft hover:border-accent-soft focus-visible:outline-white', // sits on an accent block
 }
 const SIZES = {
   md: 'min-h-11 px-5 text-base rounded-ui',

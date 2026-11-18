@@ -33,7 +33,8 @@ export function buildCorrection(form, shift) {
   else if (r.status === 'ambiguous') errors.offset = 'This time happens twice that night. Choose which one you mean.'
   else if (!errors.field) {
     const current = shift?.[form.field]?.zurich
-    if (current && Date.parse(current) === Date.parse(r.iso)) errors.newTime = 'This is already the current time. Enter the corrected time.'
+    // Minute level: the form shows only minutes, so the same minute (any seconds) counts as unchanged.
+    if (current && Math.floor(Date.parse(current) / 60000) === Math.floor(Date.parse(r.iso) / 60000)) errors.newTime = 'This is already the current time. Enter the corrected time.'
   }
 
   const reason = (form.reason ?? '').trim()

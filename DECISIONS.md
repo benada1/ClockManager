@@ -557,6 +557,18 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** (a). The brief names ASP.NET Core 8; no vulnerable package is reported by `dotnet list package --vulnerable`.
 - **Trade-offs:** No further runtime patches from Microsoft. A move to a newer LTS is a package and `TargetFramework` change, not a redesign.
 
+### D-077 — "Try again" after a lost answer replays the same punch and key
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Options:** (a) derive the intent again from the refreshed status · (b) hide the banner when the refresh already shows the new state · (c) replay the stored attempt (same intent, same key).
+- **Decision:** (c). The server answers a replay with the stored 201, so retrying is always safe. The banner says "Try again to confirm: it will not be recorded twice". A missing `crypto.randomUUID` (plain http) uses a fallback generator, or shows a clear message and sends nothing.
+- **Why:** With (a) a lost clock-in answer made "Try again" send a clock-out (QA-27).
+- **Trade-offs:** The banner can sit next to a screen that already shows the new state.
+
+### D-078 — A correction is "unchanged" when the Zurich minute is the same
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Decision:** The form shows minutes only, so typing the current minute shows "already the current time" and sends nothing, whatever the seconds (QA-28).
+- **Trade-offs:** A manager can't correct only the seconds, which is not a real need.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -683,14 +695,14 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Week with a clock change, overnight shift, open shift in History | Hours from UTC; shift stays on its clock-in day; open shift listed, not counted | `ShiftHistoryApiTests`, `ShiftHistoryBuilderTests` |
 | Manager types a time in the skipped March hour or the repeated October hour | Skipped: refused. Repeated: only with an explicit offset, never guessed | `CorrectionInputTests`, `manager.test.js` |
 | Correction that overlaps, touches another shift, is in the future or changes nothing | 409 `correction.overlap` / 422 `correction.in_future` / 422 `correction.unchanged` | `ManagerApiTests` |
-| Punch answer lost, then "Try again" | Must replay the SAME intent and key, never the opposite punch | `punchMachine.qa.test.js` (QA-27) |
+| Punch answer lost, then "Try again" | Must replay the SAME intent and key, never the opposite punch | `punchMachine.qa.test.js` (QA-27, D-077) |
 | Manager saves an untouched correction form on a punch that has seconds | Must be refused as "already the current time" | `correction.qa.test.js` (QA-28) |
-| Keyboard focus on the main punch button | Needs a visible focus style on the blue block | open (QA-29) |
+| Keyboard focus on the main punch button | Needs a visible focus style on the blue block | manual check (QA-29: white focus ring on the blue block) |
 | Time text without an offset reaches the Zurich formatter | Must be refused, never read in the browser zone | `zurich.qa.test.js` (QA-30) |
 | `crypto.randomUUID` missing (plain http on a host name) | The punch must show a message, not do nothing | `punchMachine.qa.test.js` (QA-31) |
-| Login/signup field errors | Should move focus or be announced | open (QA-33) |
-| Long unbroken names or reasons | Must wrap, not scroll the page | open (QA-34) |
-| More than 100 problems in the list | The page must say it shows the newest 100 | open (QA-35) |
+| Login/signup field errors | Should move focus or be announced | manual check (QA-33: focus moves to the first invalid field) |
+| Long unbroken names or reasons | Must wrap, not scroll the page | manual check (QA-34: text wraps) |
+| More than 100 problems in the list | The page must say it shows the newest 100 | manual check (QA-35: "Showing the newest 100") |
 
 ## Not done (out of scope)
 

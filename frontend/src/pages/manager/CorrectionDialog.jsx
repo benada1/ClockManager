@@ -5,6 +5,7 @@ import Button from '../../components/Button.jsx'
 import Dialog from '../../components/Dialog.jsx'
 import Field from '../../components/Field.jsx'
 import Loading from '../../components/Loading.jsx'
+import useFocusInvalid from '../../lib/useFocusInvalid.js'
 import { needsOffset } from '../../lib/zurich.js'
 import { toZurichInput } from '../../lib/zurichInput.js'
 import { formatDayHeading } from '../history/weeks.js'
@@ -18,10 +19,10 @@ function prefill(shift, field) {
   return { date: toZurichInput(shift?.clockIn?.zurich).date, time: '', offset: null }
 }
 
-function Radio({ name, value, checked, onChange, children, describedBy }) {
+function Radio({ name, value, checked, onChange, children, describedBy, invalid }) {
   return (
     <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-ui border border-line-strong px-3 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
-      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} aria-describedby={describedBy} className="size-4 accent-accent" />
+      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} aria-describedby={describedBy} aria-invalid={invalid || undefined} className="size-4 accent-accent" />
       <span className="text-base">{children}</span>
     </label>
   )
@@ -70,10 +71,7 @@ export default function CorrectionDialog({ shiftId, initial = null, onClose, onS
     return () => controller.abort()
   }, [api, initial, shiftId])
 
-  // After a failed check, move focus to the first field that needs attention.
-  useEffect(() => {
-    if (attempt) formRef.current?.querySelector('[aria-invalid="true"]')?.focus()
-  }, [attempt])
+  useFocusInvalid(formRef, attempt) // after a failed check, focus the first field that needs attention
 
   const shift = detail?.shift
   const set = (patch, clear) => {
@@ -207,6 +205,7 @@ export default function CorrectionDialog({ shiftId, initial = null, onClose, onS
                   checked={form.offset === c.offset}
                   onChange={() => set({ offset: c.offset }, 'offset')}
                   describedBy={errors.offset ? ids.offset : undefined}
+                  invalid={Boolean(errors.offset)}
                 >
                   {c.label}
                 </Radio>

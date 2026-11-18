@@ -40,8 +40,8 @@ export default function AppShell({ children }) {
             </nav>
           )}
           {user && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted">{user.displayName}</span>
+            <div className="flex min-w-0 max-w-full items-center gap-3">
+              <span className="min-w-0 text-sm text-muted wrap-anywhere">{user.displayName}</span>
               <Button
                 variant="secondary"
                 busy={busy}

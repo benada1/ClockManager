@@ -75,7 +75,7 @@ describe('durations', () => {
 // QA-30 (open, low): `new Date(iso)` reads a value WITHOUT an offset in the BROWSER time zone, so the "browser zone never plays a role"
 // claim in lib/zurich.js holds only because the server always sends an offset. The helper should refuse such a string.
 describe('a value without an offset must not be read in the browser zone', () => {
-  it.skip('QA-30 open: zurichTime("2026-11-17T08:00:00") depends on the machine time zone', () => {
+  it('QA-30: zurichTime("2026-11-17T08:00:00") depends on the machine time zone', () => {
     const before = process.env.TZ
     try {
       process.env.TZ = 'America/New_York'

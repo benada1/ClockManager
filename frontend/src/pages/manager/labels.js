@@ -48,7 +48,8 @@ export function correctionSentence(c) {
   const withOffset = needsOffset(oldIso, newIso)
   const to = pointText(newIso, { withOffset, sameDayAs: oldIso })
   const who = c.by?.displayName ? ` by ${c.by.displayName}` : ''
-  const when = c.at?.zurich ? ` on ${zurichDay(c.at.zurich)}, ${zurichTime(c.at.zurich)}` : ''
+  const whenTime = zurichTime(c.at?.zurich)
+  const when = whenTime ? ` on ${zurichDay(c.at.zurich)}, ${whenTime}` : ''
   const what = oldIso
     ? `${name} changed from ${pointText(oldIso, { withOffset })} to ${to} (Zurich time)`
     : `${name} set to ${to} (Zurich time)`

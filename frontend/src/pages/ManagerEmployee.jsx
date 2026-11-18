@@ -27,7 +27,7 @@ export default function ManagerEmployee({ employeeId }) {
       <a className="self-start font-medium text-accent underline" href={href('/manager')}>
         <span aria-hidden="true">&larr;</span> Team
       </a>
-      <h1 tabIndex={-1} className="text-2xl font-semibold">
+      <h1 tabIndex={-1} className="text-2xl font-semibold wrap-anywhere">
         {name ? `${name}'s shifts` : 'Shifts'}
       </h1>
       {employee && employee.isActive === false && (

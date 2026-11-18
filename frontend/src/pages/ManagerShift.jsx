@@ -39,12 +39,12 @@ export default function ManagerShift({ shiftId }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <a
-        className="self-start font-medium text-accent underline"
+        className="self-start font-medium text-accent underline wrap-anywhere"
         href={href(d?.employee ? `/manager/employee/${encodeURIComponent(d.employee.id)}` : '/manager')}
       >
         <span aria-hidden="true">&larr;</span> {d?.employee ? `${d.employee.displayName}'s shifts` : 'Team'}
       </a>
-      <h1 tabIndex={-1} className="text-2xl font-semibold">
+      <h1 tabIndex={-1} className="text-2xl font-semibold wrap-anywhere">
         {d ? `${d.employee?.displayName}: ${formatDayHeading(d.shift.workDate)}` : 'Shift'}
       </h1>
 
@@ -101,8 +101,8 @@ export default function ManagerShift({ shiftId }) {
                 {d.corrections.map((c) => (
                   <li key={c.id}>
                     <Card as="div" className="flex flex-col gap-1 p-4">
-                      <p className="text-base">{correctionSentence(c)}</p>
-                      <p className="text-base text-muted">Reason: {c.reason}</p>
+                      <p className="text-base wrap-anywhere">{correctionSentence(c)}</p>
+                      <p className="text-base text-muted wrap-anywhere">Reason: {c.reason}</p>
                     </Card>
                   </li>
                 ))}

@@ -12,6 +12,7 @@ import useLoad from './manager/useLoad.js'
 
 const TH = 'border-b border-line px-4 py-3 text-left text-sm font-medium text-muted'
 const TD = 'border-b border-line px-4 py-3 align-middle text-base'
+const PROBLEMS_LIMIT = 100 // the server returns at most this many, newest first
 const OPEN_LINK = 'inline-flex min-h-11 items-center rounded-ui px-3 font-medium text-accent underline hover:bg-accent-soft'
 
 /** Loading, failure (with retry unless it can't help) and the loaded content of one section. */
@@ -61,7 +62,7 @@ function EmployeesTable({ employees }) {
           const flags = employeeFlagTexts(e.flags)
           return (
             <tr key={e.id} className={e.isActive ? '' : 'text-muted'}>
-              <th scope="row" className={`${TD} text-left font-medium`}>
+              <th scope="row" className={`${TD} text-left font-medium wrap-anywhere`}>
                 {e.displayName}
                 {e.role === 'Manager' && <span className="ml-2 text-sm font-normal text-muted">Manager</span>}
                 {!e.isActive && <span className="block text-sm font-normal text-muted">Switched off</span>}
@@ -116,7 +117,7 @@ function ProblemsTable({ anomalies }) {
             <th scope="row" className={`${TD} text-left font-medium`}>
               <Pill as="span" tone="warning">{anomalyText(a.kind)}</Pill>
             </th>
-            <td className={TD}>{a.displayName}</td>
+            <td className={`${TD} wrap-anywhere`}>{a.displayName}</td>
             <td className={`${TD} whitespace-nowrap`}>{formatDayHeading(a.workDate)}</td>
             <td className={TD}>{shiftTimesText(a)}</td>
             <td className={`${TD} text-right`}>
@@ -151,7 +152,12 @@ export default function Manager() {
       ) : (
         <>
           <Section title="Problems" count={(d) => d.length} load={anomalies} loadingText="Loading problems…">
-            {(d) => <ProblemsTable anomalies={d} />}
+            {(d) => (
+              <>
+                <ProblemsTable anomalies={d} />
+                {d.length >= PROBLEMS_LIMIT && <p className="border-t border-line p-4 text-sm text-muted">Showing the newest {PROBLEMS_LIMIT} problems.</p>}
+              </>
+            )}
           </Section>
           <Section title="Employees" count={(d) => d.length} load={employees} loadingText="Loading employees…">
             {(d) => <EmployeesTable employees={d} />}

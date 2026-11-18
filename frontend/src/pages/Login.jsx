@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import useFocusInvalid from '../lib/useFocusInvalid.js'
 import { useAuth } from '../auth/authContext.js'
 import { ApiError } from '../api/client.js'
 import AuthLayout from '../components/AuthLayout.jsx'
@@ -15,6 +16,8 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState(null)
   const [fields, setFields] = useState({})
+  const formRef = useRef(null)
+  useFocusInvalid(formRef, fields)
 
   async function submit(e) {
     e.preventDefault()
@@ -50,7 +53,7 @@ export default function Login() {
         </>
       }
     >
-      <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+      <form ref={formRef} onSubmit={submit} noValidate className="flex flex-col gap-5">
         {notice && <Banner tone="warning" title={notice} />}
         {problem && <Banner tone="error" title={problem} />}
         <Field

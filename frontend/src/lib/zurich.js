@@ -8,7 +8,10 @@ const dayParts = new Intl.DateTimeFormat('en-GB', { timeZone: ZONE, weekday: 'sh
 
 const OFFSET_RE = /([+-])(\d{2}):(\d{2})$/
 
+const HAS_ZONE_RE = /(Z|[+-]\d{2}:?\d{2})$/i
+
 const parse = (iso) => {
+  if (!HAS_ZONE_RE.test(iso)) return null // no offset: the browser zone would decide, so refuse
   const d = new Date(iso) // server value, not the current time
   return Number.isNaN(d.getTime()) ? null : d
 }

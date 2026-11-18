@@ -17,7 +17,7 @@ describe('QA-28: opening the dialog and saving without touching the time', () =>
   // The inputs are prefilled from the current value but cut to the minute. If the manager changes only the reason
   // (or picks the other field by mistake and saves), the "already the current time" check never fires and the server
   // records a change of a few seconds with the audit row "17:12 to 17:12".
-  it.skip('QA-28 open: an untouched prefilled time is refused as unchanged', () => {
+  it('QA-28: an untouched prefilled time is refused as unchanged', () => {
     const form = { field: 'clockOut', ...toZurichInput(real.clockOut.zurich), reason: 'Checking the record' }
     const built = buildCorrection(form, real)
     expect(built.ok).toBe(false)

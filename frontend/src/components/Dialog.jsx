@@ -33,7 +33,7 @@ export default function Dialog({ title, description, onClose, locked = false, ch
           <h2 id={titleId} className="text-xl font-semibold">
             {title}
           </h2>
-          {description && <p className="text-base text-muted">{description}</p>}
+          {description && <p className="text-base text-muted wrap-anywhere">{description}</p>}
         </div>
         {children}
       </div>
