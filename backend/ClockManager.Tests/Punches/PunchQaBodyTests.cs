@@ -283,7 +283,7 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
         foreach (var (method, url) in new[] { ("GET", "/api/punches"), ("PUT", "/api/punches"), ("DELETE", "/api/punches/1"), ("POST", "/api/punches/extra") })
         {
             using var request = new HttpRequestMessage(new HttpMethod(method), url);
-            request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+            request.Headers.TryAddWithoutValidation("X-Test-User", user);
             using var response = await client.SendAsync(request);
             var text = await response.Content.ReadAsStringAsync();
 
@@ -427,7 +427,7 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new ByteArrayContent(body) };
         if (contentType is not null) request.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
-        if (user is not null) request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        if (user is not null) request.Headers.TryAddWithoutValidation("X-Test-User", user);
         request.Headers.TryAddWithoutValidation("Idempotency-Key", key ?? Guid.NewGuid().ToString());
         if (headers is not null) foreach (var (name, value) in headers) request.Headers.TryAddWithoutValidation(name, value);
 

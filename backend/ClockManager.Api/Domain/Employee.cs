@@ -1,10 +1,11 @@
 namespace ClockManager.Api.Domain;
 
-/// <summary>A person who punches in and out. Login credentials arrive in Phase 4.</summary>
+/// <summary>A person who punches in and out.</summary>
 public sealed class Employee
 {
     public const int UsernameMaxLength = 64;
     public const int DisplayNameMaxLength = 128;
+    public const int PasswordHashMaxLength = 256;
 
     public Employee(string username, string displayName, EmployeeRole role)
     {
@@ -31,6 +32,18 @@ public sealed class Employee
 
     /// <summary>A deactivated employee keeps their history but can't punch (enforced in Phase 3).</summary>
     public bool IsActive { get; private set; }
+
+    /// <summary>PBKDF2 hash from <c>PasswordHasher</c>; null = cannot log in (seeded users). Never sent to a client.</summary>
+    public string? PasswordHash { get; private set; }
+
+    public void SetPasswordHash(string hash)
+    {
+        if (string.IsNullOrWhiteSpace(hash) || hash.Length > PasswordHashMaxLength)
+        {
+            throw new ArgumentException($"A hash of 1 to {PasswordHashMaxLength} characters is required.", nameof(hash));
+        }
+        PasswordHash = hash;
+    }
 
     /// <summary>SQL Server <c>rowversion</c>, set by the database on every write.</summary>
     public byte[] RowVersion { get; private set; } = null!;

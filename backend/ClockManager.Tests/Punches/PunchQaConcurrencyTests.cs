@@ -363,7 +363,7 @@ public sealed class PunchQaConcurrencyTests(MigratedDatabaseFixture database) : 
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("X-Test-User", user);
         request.Headers.TryAddWithoutValidation("Idempotency-Key", key ?? Guid.NewGuid().ToString());
         using var response = await client.SendAsync(request, ct);
         var text = await response.Content.ReadAsStringAsync(ct);

@@ -134,7 +134,7 @@ public sealed class PunchQaLogTests(MigratedDatabaseFixture database) : IClassFi
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("X-Test-User", user);
         request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
         using var response = await client.SendAsync(request);
         await response.Content.ReadAsStringAsync();

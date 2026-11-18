@@ -148,14 +148,16 @@ public sealed class StatusApiTests(MigratedDatabaseFixture database) : IClassFix
     }
 
     [SqlServerFact]
-    public async Task Production_ignores_X_Dev_Employee_and_answers_401()
+    public async Task The_old_X_Dev_Employee_header_is_ignored_and_answers_401()
     {
-        var (factory, clock, _) = NewHost("2026-01-12T07:00:00Z", environment: "Production");
+        var (factory, clock, _) = NewHost("2026-01-12T07:00:00Z");
         await using var _f = factory;
         using var client = factory.CreateClient();
         var (_, user) = await AddEmployeeAsync();
 
-        var (status, problem) = await GetStatusAsync(client, user);
+        using var request = new HttpRequestMessage(HttpMethod.Get, StatusUrl);
+        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user); // the removed dev header
+        var (status, problem) = await ReadAsync(client, request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, status);
         Assert.Equal(ErrorCodes.Unauthenticated, problem.GetProperty("code").GetString());
@@ -521,7 +523,7 @@ public sealed class StatusApiTests(MigratedDatabaseFixture database) : IClassFix
     private static HttpRequestMessage StatusRequest(string? user)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, StatusUrl);
-        if (user is not null) request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        if (user is not null) request.Headers.TryAddWithoutValidation("X-Test-User", user);
         return request;
     }
 
@@ -537,7 +539,7 @@ public sealed class StatusApiTests(MigratedDatabaseFixture database) : IClassFix
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("X-Test-User", user);
         request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
         return await ReadAsync(client, request);
     }

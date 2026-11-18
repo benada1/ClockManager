@@ -6,6 +6,8 @@ namespace ClockManager.Api.Infrastructure.Persistence.Configurations;
 
 internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
 {
+    public const string UsernameIndex = "UX_Employees_Username";
+
     public void Configure(EntityTypeBuilder<Employee> builder)
     {
         builder.ToTable("Employees", t =>
@@ -15,7 +17,7 @@ internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.Id).UseIdentityColumn();
 
         builder.Property(e => e.Username).HasMaxLength(Employee.UsernameMaxLength).IsRequired();
-        builder.HasIndex(e => e.Username).IsUnique().HasDatabaseName("UX_Employees_Username");
+        builder.HasIndex(e => e.Username).IsUnique().HasDatabaseName(UsernameIndex);
 
         builder.Property(e => e.DisplayName).HasMaxLength(Employee.DisplayNameMaxLength).IsRequired();
 
@@ -25,6 +27,9 @@ internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         // DEFAULT 1 is for rows inserted by hand. ValueGeneratedNever makes EF always send the value: otherwise EF would
         // treat false (the CLR default) as "not set" and the DB default would silently turn a deactivated employee active.
         builder.Property(e => e.IsActive).IsRequired().HasDefaultValue(true).ValueGeneratedNever();
+
+        // Nullable: seeded employees have no password and cannot log in.
+        builder.Property(e => e.PasswordHash).HasMaxLength(Employee.PasswordHashMaxLength);
 
         builder.Property(e => e.RowVersion).IsRowVersion();
     }

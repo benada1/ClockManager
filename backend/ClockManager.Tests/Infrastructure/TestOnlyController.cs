@@ -28,6 +28,10 @@ public sealed class TestOnlyController : ControllerBase
             ErrorCodes.TimeUnavailable,
             [new ProviderOutcome("time.now", "timeout"), new ProviderOutcome("timeapi.io", "rate_limited")]);
 
+    [HttpGet("managers-only")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Manager")]
+    public IActionResult ManagersOnly() => Ok();
+
     [HttpGet("unhandled")]
     public IActionResult Unhandled() => throw new InvalidOperationException(SecretMessage);
 

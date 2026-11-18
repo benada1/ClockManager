@@ -226,7 +226,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** About 20–40 s extra per run for the image pull and boot (partly hidden behind restore/build). CI uses SQL Server 2022 on Linux, the dev machine SQL Server 2025 Express on Windows; we only use long-standing features, and CI is the referee (plan 02 §8).
 - **Refs:** `.github/workflows/ci.yml` · `TestSqlServer.cs` · D-024
 
-### D-027 — Phase 3 "who is punching": a Development-only `X-Dev-Employee` header behind `ICurrentEmployee`
+### D-027 — Phase 3 "who is punching": a Development-only `X-Dev-Employee` header behind `ICurrentEmployee` (superseded by D-049)
 - **Date:** 2026-11-17 · **Status:** Accepted (temporary, replaced in Phase 4) · **Area:** backend
 - **Context:** Punches need an employee, but login is Phase 4. The user chose "punch first, login later" (plan 03 §3).
 - **Options:** (a) build cookie login now · (b) `employeeId` in the punch body · (c) a dev-only header read by an `ICurrentEmployee` implementation registered only in Development.
@@ -410,6 +410,35 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** `dev/mockAuth.js` (dev server only) fakes login, signup, status and punches. Scenarios come from `?mock=` in the page URL (e.g. `open`, `forgotten`, `unavailable`, `conflict`, `expired`, `offline`).
 - **Why:** Every screen state can be checked without the backend, and the frontend could be built in parallel with Phase 4.
 
+### D-049 — Login is a JWT in an HTTP-only cookie (replaces the dev header, D-027)
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Options:** (a) bearer token kept in `localStorage` · (b) server-side session cookie · (c) JWT in an HTTP-only, SameSite=Lax cookie.
+- **Decision:** (c), checked by the standard JWT handler. Cookie `clockmanager_auth`, `Secure` over HTTPS. A bearer header is ignored on purpose. 8 hour life, no refresh (`Auth:TokenLifetimeHours`, 1–24).
+- **Why:** Scripts can't read the token, so a script bug can't steal it. The API is same-origin through the Vite proxy, so no CORS or CSRF token is needed; Lax blocks cross-site POSTs and signup/login accept only JSON.
+- **Trade-offs:** No revocation before expiry (logout only clears the cookie); a deactivated employee is still blocked because the employee is loaded on every request. Behind a TLS proxy the app needs forwarded-header settings for `Secure`.
+- **Refs:** plans/04-auth.md · `Infrastructure/Identity/`
+
+### D-050 — Signing key from config only; Development makes a random one
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** `Auth:SigningKey` (user-secrets or `Auth__SigningKey`), at least 32 characters, checked on startup. Development without a key makes a random one each run (logins end on restart); any other environment refuses to start.
+- **Why:** A fixed dev key in `appsettings.Development.json` would be a secret in git (rule 3).
+
+### D-051 — The server clock is used for the token's issue and expiry time only
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Options:** (a) the trusted clock · (b) the server clock in one marked class.
+- **Decision:** (b): `AuthClock`, one `internal` class with a `clock-ok` marker. A token is not a punch record, and punches never use it.
+- **Why:** (a) would make login fail whenever the time providers are down.
+- **Trade-offs:** A wrong server clock could only change session length, never a record.
+
+### D-052 — Login failures give one answer; passwords use the built-in hasher
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** Wrong password, unknown user and a user without a password all give the same 401 `auth.invalid_credentials`; an unknown user costs a dummy hash so timing doesn't reveal names. 403 `employee.inactive` appears only after a correct password. Passwords use `PasswordHasher<Employee>` (PBKDF2) in a nullable `PasswordHash` column; seeded users have none and can't log in.
+- **Trade-offs:** Signup still reveals whether a name exists (409); rate limits come in step 3.
+
+### D-053 — Open signup creates Employees only
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** The role is set by the server; a `role` field in the body is ignored. Managers exist only through the seed. Username: 3–32 letters, digits, `.`, `_`, `-`, unique ignoring case; password 8–128.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -514,6 +543,11 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Client abort while the DB write is in flight | Rolled back, no shift and no record, the same key works afterwards; EF logs an Error line | `Abort_while_the_INSERT_waits_on_the_database_rolls_back_and_the_same_key_then_works`; log noise accepted, see Known limitations (QA-25; `QA25_*` stays skipped) |
 | Zurich boundaries over HTTP (repeated October hour, DST start, midnight, new year, 2027 / 2028 change dates) | Response, DB row and status agree; durations come from UTC; flags at exact thresholds | `PunchQaDstHttpTests` |
 | 30 parallel clock-ins (same key / different keys), 80-request in/out storm, 20 employees in parallel | Never a 500, never two open shifts, every 201 matches a stored row, records == successes, no cross-talk or deadlock | `PunchQaConcurrencyTests` |
+| Expired, tampered, wrong-key or bearer-header token | 401 `auth.unauthenticated`; the header is never read | `AuthApiTests` |
+| Valid token of a deleted or deactivated employee | 401 for a deleted one, 403 `employee.inactive` for a deactivated one | `AuthApiTests` |
+| Two signups with the same name at once | The unique index gives one 409 | `AuthApiTests` |
+| Missing or short signing key outside Development | The host refuses to start | `AuthHostTests` |
+| Not logged in and a bad body or no `Idempotency-Key` | 401 comes before 400 | `AuthApiTests` |
 
 ## Not done (out of scope)
 
@@ -589,3 +623,4 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
   shift, no record, the same key works afterwards). EF Core logs "An error occurred using a transaction" for the cancelled
   transaction. Silencing that category would also hide genuine transaction errors, so it is accepted. The skipped test
   `PunchQaCancelTests.QA25_*` documents it.
+- **No token revocation, password reset or rate limit yet (Phase 4).** Logout only clears the cookie, so a stolen token works until it expires (8 h). Rate limits on login and signup come in plan 04 step 3; there is no password reset.

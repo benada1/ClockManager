@@ -24,6 +24,10 @@ public static class ErrorCodes
     // Employees
     public const string EmployeeInactive = "employee.inactive";
 
+    // Auth (the generic Unauthenticated / Forbidden codes are below)
+    public const string AuthInvalidCredentials = "auth.invalid_credentials";
+    public const string AuthUsernameTaken = "auth.username_taken";
+
     // Generic, derived from the HTTP status when nothing more specific is known
     public const string RequestInvalid = "request.invalid";
     public const string Unauthenticated = "auth.unauthenticated";

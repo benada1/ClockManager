@@ -24,8 +24,8 @@ if (builder.Environment.IsDevelopment())
 
 builder.Services.AddPersistence();
 
-// Who is punching: the X-Dev-Employee header in Development only; nobody can sign in elsewhere until Phase 4 (D-027).
-builder.Services.AddCurrentEmployee(builder.Environment);
+// Login (JWT in an HttpOnly cookie) and "who is punching" (ICurrentEmployee) from it.
+builder.Services.AddAuth(builder.Environment);
 builder.Services.AddScoped<PunchService>();
 
 // The status endpoint's cached server time: display and flags only, never a record (D-035). PunchService doesn't use it.
@@ -47,6 +47,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 // Development only (and only with Database:MigrateAndSeedOnStartup): apply migrations, then seed demo employees.

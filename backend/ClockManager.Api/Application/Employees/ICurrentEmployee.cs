@@ -7,9 +7,8 @@ namespace ClockManager.Api.Application.Employees;
 public sealed record CurrentEmployee(int Id, string Username, string DisplayName, EmployeeRole Role, bool IsActive);
 
 /// <summary>
-/// Who is making the request (plans/03-punch-api.md §3, D-027). Phase 3: the Development-only
-/// <c>X-Dev-Employee</c> header; Phase 4 replaces it with cookie login. Services depend only on this interface,
-/// so the swap doesn't touch them.
+/// Who is making the request: the employee behind the validated login cookie (plans/04-auth.md). Services depend only
+/// on this interface.
 /// </summary>
 public interface ICurrentEmployee
 {

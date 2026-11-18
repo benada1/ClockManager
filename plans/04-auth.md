@@ -1,6 +1,6 @@
 # 04 — Auth (signup, login, JWT in an HTTP-only cookie)
 
-**Status:** Draft 2026-11-18, waiting for approval · **Lead agent:** backend · **Runs in parallel with:** plan 05 (frontend)
+**Status:** Approved 2026-11-18 · Steps 1–2 done (signup, login, logout, me, cookie JWT, dev header removed, D-049..D-053) · Step 3 (rate limits, seed manager password, README) next · **Lead agent:** backend
 **Refs:** master plan D10 (changed: JWT in a cookie, by the user's choice) · D-027 (dev header) · CLAUDE.md rules 2 and 3
 
 ## 1. Goal

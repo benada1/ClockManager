@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace ClockManager.Tests.Punches;
 
-/// <summary>The punch endpoint is documented in Swagger (Development) with both headers and only <c>intent</c> in the body.</summary>
+/// <summary>The punch endpoint is documented in Swagger (Development) with its header and only <c>intent</c> in the body.</summary>
 public sealed class PunchSwaggerTests
 {
     [Fact]
@@ -25,15 +25,16 @@ public sealed class PunchSwaggerTests
             .Select(p => (p.GetProperty("name").GetString(), p.GetProperty("in").GetString()))
             .ToList();
         Assert.Contains(("Idempotency-Key", "header"), parameters);
-        Assert.Contains(("X-Dev-Employee", "header"), parameters);
+        Assert.DoesNotContain(("X-Dev-Employee", "header"), parameters); // the dev header is gone
+        Assert.Equal("cookieAuth", post.GetProperty("security")[0].EnumerateObject().Single().Name);
         Assert.Equal(["201", "400", "401", "403", "409", "422", "503"], post.GetProperty("responses").EnumerateObject().Select(r => r.Name));
 
-        // The status endpoint gets the same dev header, and documents 200 / 401 / 403 only (a time problem is never an error there).
+        // The status endpoint documents 200 / 401 / 403 only (a time problem is never an error there).
         var get = doc.GetProperty("paths").GetProperty("/api/me/status").GetProperty("get");
-        var getParameters = get.GetProperty("parameters").EnumerateArray()
+        var getParameters = (get.TryGetProperty("parameters", out var gp) ? gp.EnumerateArray() : Enumerable.Empty<JsonElement>())
             .Select(p => (p.GetProperty("name").GetString(), p.GetProperty("in").GetString()))
             .ToList();
-        Assert.Contains(("X-Dev-Employee", "header"), getParameters);
+        Assert.DoesNotContain(("X-Dev-Employee", "header"), getParameters);
         Assert.DoesNotContain(("Idempotency-Key", "header"), getParameters);
         Assert.Equal(["200", "401", "403"], get.GetProperty("responses").EnumerateObject().Select(r => r.Name));
 

@@ -416,14 +416,22 @@ public sealed class PunchApiTests(MigratedDatabaseFixture database) : IClassFixt
     // ---- Who is punching (P17, P18) ----
 
     [SqlServerFact]
-    public async Task P17_Production_ignores_X_Dev_Employee_and_answers_401()
+    public async Task P17_the_old_X_Dev_Employee_header_is_ignored_in_every_environment_and_answers_401()
     {
         var clock = new FakeTrustedClock("2026-01-12T07:00:00Z");
-        await using var factory = new PunchApiFactory(database, clock, environment: "Production");
+        await using var factory = new PunchApiFactory(database, clock); // Development, where the header used to work
         using var client = factory.CreateClient();
         var (employeeId, user) = await AddEmployeeAsync(); // a real, active employee
 
-        var (status, problem) = await SendAsync(client, ClockIn, user);
+        using var request = new HttpRequestMessage(HttpMethod.Post, Url)
+        {
+            Content = new StringContent(ClockIn, Encoding.UTF8, "application/json"),
+        };
+        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var response = await client.SendAsync(request);
+        var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        var status = response.StatusCode;
 
         Assert.Equal(HttpStatusCode.Unauthorized, status);
         Assert.Equal(ErrorCodes.Unauthenticated, problem.GetProperty("code").GetString());
@@ -523,7 +531,7 @@ public sealed class PunchApiTests(MigratedDatabaseFixture database) : IClassFixt
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        if (user is not null) request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        if (user is not null) request.Headers.TryAddWithoutValidation("X-Test-User", user);
         if (sendKey) request.Headers.TryAddWithoutValidation("Idempotency-Key", key ?? Guid.NewGuid().ToString());
 
         using var response = await client.SendAsync(request, ct);

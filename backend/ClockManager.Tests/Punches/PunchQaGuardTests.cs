@@ -331,7 +331,7 @@ public sealed class PunchQaGuardTests(MigratedDatabaseFixture database) : IClass
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("X-Test-User", user);
         request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 

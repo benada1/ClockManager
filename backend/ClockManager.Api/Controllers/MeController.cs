@@ -1,4 +1,5 @@
 using ClockManager.Api.Application.Status;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClockManager.Api.Controllers;
@@ -8,6 +9,7 @@ namespace ClockManager.Api.Controllers;
 /// punches. A time-provider problem is NOT an error here: <c>serverNow</c> is null and the time-based flags are left out.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/me")]
 public sealed class MeController(StatusService status) : ControllerBase
 {

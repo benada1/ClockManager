@@ -195,7 +195,7 @@ public sealed class PunchQaKeyTests(MigratedDatabaseFixture database) : IClassFi
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("X-Test-User", user);
         // One TryAdd per value = one header line each (a client sending the header twice).
         foreach (var key in keys) request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
 

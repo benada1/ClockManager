@@ -39,6 +39,10 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(16)

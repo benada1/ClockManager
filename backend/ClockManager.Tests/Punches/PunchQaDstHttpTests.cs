@@ -135,7 +135,7 @@ public sealed class PunchQaDstHttpTests(MigratedDatabaseFixture database) : ICla
     private static async Task<Reply> SendAsync(HttpClient client, HttpMethod method, string url, string? body, string user, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(method, url);
-        request.Headers.TryAddWithoutValidation("X-Dev-Employee", user);
+        request.Headers.TryAddWithoutValidation("X-Test-User", user);
         if (body is not null)
         {
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");

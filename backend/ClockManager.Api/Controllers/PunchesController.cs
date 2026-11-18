@@ -1,15 +1,17 @@
 using ClockManager.Api.Application.Punches;
 using ClockManager.Api.Application.Shifts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClockManager.Api.Controllers;
 
 /// <summary>
 /// <c>POST /api/punches</c>: Clock In or Clock Out (plans/03-punch-api.md §4). The body is the intent only; the time
-/// comes from the trusted clock on the server. Checks run in this order: body (400 <c>request.invalid</c>) → who
-/// (401 / 403) → <c>Idempotency-Key</c> (400) → a known key is replayed (422 for the other intent) → shift state (409) → trusted time (503).
+/// comes from the trusted clock on the server. Checks run in this order: login cookie (401, before the body is read) → body (400 <c>request.invalid</c>) → employee
+/// active (403) → <c>Idempotency-Key</c> (400) → a known key is replayed (422 for the other intent) → shift state (409) → trusted time (503).
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/punches")]
 public sealed class PunchesController(PunchService punches) : ControllerBase
 {
