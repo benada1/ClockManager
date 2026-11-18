@@ -569,6 +569,23 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** The form shows minutes only, so typing the current minute shows "already the current time" and sends nothing, whatever the seconds (QA-28).
 - **Trade-offs:** A manager can't correct only the seconds, which is not a real need.
 
+### D-079 — JSON bodies must be UTF-8 (or have no charset)
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Options:** (a) catch the formatter exceptions · (b) a small middleware that rejects early · (c) leave it.
+- **Decision:** (b). Any JSON request whose charset is not utf-8 (utf-16, empty `charset=`, ...) gets 415 `request.unsupported_media_type`, as the other unsupported charsets already did.
+- **Why:** utf-16 and an empty charset made the JSON reader throw: a 500 and an Error log on every JSON endpoint (QA-42).
+- **Trade-offs:** A real utf-16 client is refused.
+
+### D-080 — Login and signup limits: IPv6 /64, 16 KB bodies, duplicate fields
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** The login/signup rate limit counts an IPv6 client by its /64 (one subscriber) and an IPv4-mapped address as IPv4; `X-Forwarded-For` is still ignored (D-054). Signup, login, punch and correction bodies are limited to 16 KB. Duplicate JSON fields are refused in signup and login too (amends D-041). Every response carries `X-Content-Type-Options: nosniff`.
+- **Why:** A per-address budget could be multiplied by anyone with an IPv6 range; the 30 MB default was parsed before validation (QA-46, QA-48, QA-41, QA-44).
+- **Trade-offs:** Users sharing one /64 share a budget. The test host can't enforce the size limit, so the test checks the endpoint settings.
+
+### D-081 — A token for a missing user is 401 on manager pages too; a corrupt hash is a failed login
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** A valid token whose employee is missing gets 401 `auth.unauthenticated` on `/api/manager/*` (as on `/api/me/*`); inactive or non-manager employees stay 403. A stored password hash that is not valid base64 counts as a failed login (401, same timing), never a 500 (QA-45, QA-43).
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -703,13 +720,13 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Login/signup field errors | Should move focus or be announced | manual check (QA-33: focus moves to the first invalid field) |
 | Long unbroken names or reasons | Must wrap, not scroll the page | manual check (QA-34: text wraps) |
 | More than 100 problems in the list | The page must say it shows the newest 100 | manual check (QA-35: "Showing the newest 100") |
-| Body charset `utf-16` or an empty `charset=` | Open (QA-42): every JSON endpoint answers 500 instead of a 4xx | `AuthQaInputTests.QA42_*` (skipped) |
-| A stored password hash that is not base64 | Open (QA-43): login answers 500 instead of 401; base64-looking junk is a normal 401 | `AuthQaInputTests.QA43_*` (skipped) |
-| A token for a deleted or missing employee on manager endpoints | Open (QA-45): 403 today, 401 expected (`/api/me/*` already gives 401) | `AuthQaTokenTests.QA45_*` (skipped) |
-| Duplicate JSON members in signup and login | Open (QA-41): the last one wins (the punch body rejects them) | `AuthQaInputTests.QA41_*` (skipped) |
-| An IPv6 client rotating addresses inside one /64 | Open (QA-46): each address has its own login budget | `AuthQaRateLimitTests.QA46_*` (skipped) |
-| Signup and login request size | Open (QA-48): only the framework default (30 MB) applies | `AuthQaHostTests.QA48_*` (skipped) |
-| JSON responses without `X-Content-Type-Options: nosniff` | Open (QA-44), defence in depth | `AuthQaInputTests.QA44_*` (skipped) |
+| Body charset `utf-16` or an empty `charset=` | 415 `request.unsupported_media_type` (D-079) | `AuthQaInputTests.QA42_*` |
+| A stored password hash that is not base64 | Normal 401 like any failed login (D-081) | `AuthQaInputTests.QA43_*` |
+| A token for a deleted or missing employee on manager endpoints | 401 `auth.unauthenticated`, same as `/api/me/*` (D-081) | `AuthQaTokenTests.QA45_*` |
+| Duplicate JSON members in signup and login | 400 with a fixed message, like the punch body (D-080) | `AuthQaInputTests.QA41_*` |
+| An IPv6 client rotating addresses inside one /64 | One shared login budget per /64 (D-080) | `AuthQaRateLimitTests.QA46_*` |
+| Signup and login request size | Limited to 16 KB on signup, login, punch and correction (D-080) | `AuthQaHostTests.QA48_*` |
+| JSON responses without `X-Content-Type-Options: nosniff` | Every response has it (D-080) | `AuthQaInputTests.QA44_*` |
 | 20 parallel signups with one name | One 201, 19 clean 409s; the losers log an EF Error line (QA-47, accepted like QA-25) | `AuthQaConcurrencyTests` |
 | `X-Forwarded-For`, `Forwarded`, `X-Real-IP` | Ignored: the connection address picks the rate-limit partition | `AuthQaRateLimitTests.Forwarding_headers_*` |
 | Forged token naming a victim | 401, and it never spends the victim's punch budget | `AuthQaRateLimitTests.A_forged_token_*` |
@@ -753,6 +770,9 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-18 | Step 2 evaluated the monotonic guard before the write and treated it as protection for the write | The guard was not atomic with the INSERT/UPDATE: a stalled punch could be stored with an instant not later than a newer punch of the same employee (overlapping or touching shifts). Found by the qa agent (QA-23), a skipped storm test that failed in most runs | The save transaction takes an update lock on the employee row and re-runs the guard under it (D-044); the test is un-skipped, stable over 10 runs, fails without the fix; two deterministic lock tests added | `63e25a8` |
 | 2026-11-18 | Step 2 put the same "A shift is already open. Clock out before clocking in again." text on every clock-in 409 | When another tab had opened AND closed a shift meanwhile, nothing was open but the text told the employee to clock out. Found by qa slice B (QA-26) | Fixed wording when there is no open shift; the code stays `shift.already_open`. Test un-skipped | `c3781df` |
 | 2026-11-18 | Claude kept the long commit subjects and bodies after the user shortened the rule | The rule change (4554d89) landed mid-step; Claude read CLAUDE.md only at the start of the session. The 14 commits from a878363 to c3781df break the new rule (not rewritten, rule 6) | Rule followed from now on: subject up to about 50 characters, plain words, 1–3 line body; CLAUDE.md is re-read before each commit | `c3781df` |
+| 2026-11-18 | JSON endpoints trusted the content-type charset; `PasswordService` expected a valid stored hash; the rate limiter keyed on the full IP text; signup, login, punch and correction bodies had no size limit; no `nosniff` header; the duplicate-field rule covered only the punch body | A utf-16 or empty charset gave a 500; a corrupt hash gave a 500 on login; one IPv6 /64 got a fresh budget per address; huge bodies were parsed before validation. Found by the login QA (QA-41..44, QA-46, QA-48) | Charset middleware, safe hash check, /64 partition, 16 KB limits, nosniff, shared duplicate scan | `2bc6f66` |
+| 2026-11-18 | The manager policy answered 403 for a token naming a missing employee | Inconsistent with 401 on `/api/me/*`, so the UI would not send the user to login (QA-45) | The policy answers 401 | `6f28d4b` |
+| 2026-11-18 | README told people to run `dotnet user-secrets`, but the project had no secrets id | Every such command failed, so the manager login and the other database options could not be set up from the docs (F1) | Added `UserSecretsId` and a test | `9f28b2d` |
 
 ## Known limitations
 

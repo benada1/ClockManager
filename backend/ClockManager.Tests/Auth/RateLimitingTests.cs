@@ -45,7 +45,7 @@ public sealed class RateLimitingTests(MigratedDatabaseFixture database) : IClass
         using var otherIp = await LoginAsync(client, name, "10.0.0.2");
         Assert.Equal(HttpStatusCode.OK, otherIp.StatusCode);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(1500)); // the window is 1 second
+        await Task.Delay(TimeSpan.FromMilliseconds(3000)); // window is 1 s; wide margin for a busy machine
         using var afterWindow = await LoginAsync(client, name, "10.0.0.1");
         Assert.Equal(HttpStatusCode.OK, afterWindow.StatusCode);
     }

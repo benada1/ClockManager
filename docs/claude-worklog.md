@@ -205,3 +205,12 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
   CLAUDE.md only at the start of the session, so 11 commits kept the old long style. They are not rewritten (rule 6).
   Also found while closing the phase: three corrections rows added by agents sat after the Known limitations section
   instead of in the table, and one row was duplicated. They were moved and the real commit hashes filled in.
+
+## 2026-11-18 — Wide QA pass: login, screens, docs
+
+- **Asked:** Phase 8, a wide QA of what had never been checked (login and security, the screens, History, manager, docs).
+- **What the QA found in Claude's own work:** the login code gave a 500 for odd charsets and corrupt hashes, the IPv6 rate limit was weak, the
+  token-for-nobody answer was inconsistent, and the README's `user-secrets` commands could not work (no secrets id). On the screens, "Try again"
+  after a lost answer could send the opposite punch, and an untouched correction form could save a silent seconds change. The docs had stale plans,
+  a stale CLAUDE.md and missing edge-case rows.
+- **Fix:** each as its own commit (see the corrections table) with its test turned back on. Known limits that need a real browser are in DECISIONS.
