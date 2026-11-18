@@ -1,8 +1,8 @@
 # CLAUDE.md — ClockManager
 
 Employee time-clock system: employees **Clock In / Clock Out** of shifts.
-Stack: **ASP.NET Core 8 Web API** · **Microsoft SQL Server** (EF Core) · **React 19 + Vite** (JSX).
 Stack: **ASP.NET Core 8 Web API** · **Microsoft SQL Server** (EF Core, NodaTime) · **React 19 + Vite** (JSX, Tailwind CSS v4, Vitest). Login is a JWT in an HTTP-only cookie.
+
 This is a graded home assignment. Reviewers read the code, the commit history, `README.md`,
 `DECISIONS.md`, this file, `.claude/`, and the work plans. **Depth over breadth**: a few features
 done thoroughly, with reasons, are better than many shallow ones. Anything not done goes into `DECISIONS.md`.
