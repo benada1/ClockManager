@@ -1,7 +1,7 @@
 // Punch screen logic without React or the DOM: a reducer for the state and a small async
 // controller for the requests. The screen flips ONLY from a confirmed 201 (no optimistic update).
 import { ApiError, NetworkError } from '../../api/client.js'
-import describeFailure, { isExpectedShift, UNEXPECTED_ANSWER } from './describeFailure.js'
+import describeFailure, { isExpectedShift, NO_KEY, UNEXPECTED_ANSWER } from './describeFailure.js'
 
 export const initialState = {
   status: null,
@@ -81,8 +81,18 @@ export function createPunchController({ api, newKey, now }) {
 
   async function press() {
     if (inFlight || !state.status) return
-    const intent = state.status.openShift ? 'clock-out' : 'clock-in'
-    if (attempt?.intent !== intent) attempt = { intent, key: newKey() }
+    // A pending attempt is replayed as it was (same intent and key), even if the refreshed status moved on:
+    // the server answers a replay with the stored result.
+    if (!attempt) {
+      const intent = state.status.openShift ? 'clock-out' : 'clock-in'
+      try {
+        attempt = { intent, key: newKey() }
+      } catch {
+        dispatch({ type: 'punch_failed', problem: NO_KEY })
+        return
+      }
+    }
+    const { intent } = attempt
     inFlight = true
     seq++ // any status answer still on its way is now stale
     statusAbort?.abort()

@@ -22,7 +22,7 @@ export function ClockedInFor({ status, syncAt }) {
       )}
       <div aria-live="polite" className="flex flex-col gap-1">
         <p className="text-xl">
-          Since <strong>{zurichTime(t)}</strong> {zoneLabel(t, needsOffset(t))}
+          Since <strong>{zurichTime(t) ?? '–'}</strong> {zoneLabel(t, needsOffset(t))}
         </p>
         <p className="text-base">{zurichDay(t)}</p>
       </div>
@@ -54,11 +54,11 @@ export function LastResult({ status, justClosedId }) {
         </p>
       )}
       <p className={`${KEY} text-ink`}>
-        {fresh ? 'You clocked out at' : 'Last clock out:'} <strong>{zurichTime(tOut)}</strong> {label}
+        {fresh ? 'You clocked out at' : 'Last clock out:'} <strong>{zurichTime(tOut) ?? '–'}</strong> {label}
       </p>
       {worked && <p className="text-xl text-ink">Worked {worked}</p>}
       <p className="text-base">
-        Started at {zurichTime(tIn)}, {zurichDay(tIn)}
+        Started at {zurichTime(tIn) ?? '–'}, {zurichDay(tIn)}
       </p>
     </div>
   )
@@ -70,7 +70,7 @@ export function ClockedInAt({ status }) {
   return (
     <div aria-live="polite" className="flex flex-col gap-1">
       <p className={`${KEY} text-ink`}>
-        You clocked in at <strong>{zurichTime(t)}</strong> {zoneLabel(t, needsOffset(t))}
+        You clocked in at <strong>{zurichTime(t) ?? '–'}</strong> {zoneLabel(t, needsOffset(t))}
       </p>
       <p className="text-base">{zurichDay(t)}</p>
     </div>

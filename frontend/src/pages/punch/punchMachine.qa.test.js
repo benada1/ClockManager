@@ -1,6 +1,7 @@
 // QA (phase 8): punch machine sequences the first test pass did not cover.
 import { describe, expect, it } from 'vitest'
 import { ApiError, NetworkError } from '../../api/client.js'
+import describeFailure from './describeFailure.js'
 import { createPunchController } from './punchMachine.js'
 
 const at = (t) => ({ utc: `2026-11-18T${t}:00.000Z`, zurich: `2026-11-18T${t}:00.000+01:00` })
@@ -42,7 +43,7 @@ function world({ loseAnswerOf }) {
 describe('QA-27: "Try again" after a lost answer', () => {
   // The server saved the clock-in, the answer got lost, the automatic refresh then shows "clocked in" next to a banner that
   // still offers "Try again: it will not be recorded twice". That button calls press(), which derives the intent from the NEW status.
-  it.skip('QA-27 open: Try again repeats the SAME intent and key (a replay), it does not clock out', async () => {
+  it('QA-27: Try again repeats the SAME intent and key (a replay), it does not clock out', async () => {
     const { c, punches } = world({ loseAnswerOf: 'clock-in' })
     await c.refresh()
     await c.press() // clock-in: saved on the server, answer lost, refresh follows
@@ -52,7 +53,7 @@ describe('QA-27: "Try again" after a lost answer', () => {
     expect(punches[1]).toEqual({ intent: 'clock-in', key: punches[0].key })
   })
 
-  it.skip('QA-27 open: the same for clock-out: Try again must not start a new shift', async () => {
+  it('QA-27: the same for clock-out: Try again must not start a new shift', async () => {
     const { c, punches } = world({ loseAnswerOf: 'clock-out' })
     await c.refresh()
     await c.press() // clock-in ok
@@ -65,7 +66,7 @@ describe('QA-27: "Try again" after a lost answer', () => {
 })
 
 describe('QA-31: the idempotency key cannot be made (crypto.randomUUID needs https or localhost)', () => {
-  it.skip('QA-31 open: a throwing key factory must not leave press() rejecting without any message', async () => {
+  it('QA-31: a throwing key factory must not leave press() rejecting without any message', async () => {
     const c = createPunchController({
       api: { getStatus: () => Promise.resolve({ openShift: null, lastClosedShift: null, serverNow: null, flags: [] }), punch: () => Promise.reject(new Error('never')) },
       newKey: () => {
@@ -105,5 +106,17 @@ describe('pins: a retried punch after a 503 keeps its key, a different intent do
     await c.press()
     await c.press()
     expect(keys).toEqual(['k1', 'k1'])
+  })
+})
+
+describe('QA-40: 409 shift.already_open without an open shift', () => {
+  it('does not claim "already clocked in"', () => {
+    const p = describeFailure(new ApiError({ status: 409, code: 'shift.already_open', problem: { openShift: null } }))
+    expect(p.title).not.toMatch(/already clocked in/i)
+    expect(p.title).toMatch(/another tab/i)
+  })
+  it('keeps the old wording when the server sends the open shift', () => {
+    const p = describeFailure(new ApiError({ status: 409, code: 'shift.already_open', problem: { openShift } }))
+    expect(p.title).toMatch(/already clocked in/i)
   })
 })

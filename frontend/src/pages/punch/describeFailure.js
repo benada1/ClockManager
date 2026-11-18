@@ -8,13 +8,15 @@ export default function describeFailure(err) {
   if (err instanceof NetworkError) {
     return {
       title: "We couldn't reach the server.",
-      text: 'Your punch may or may not have been saved. Try again: it will not be recorded twice.',
+      text: 'The answer was lost, so we cannot tell if it was saved. Try again to confirm: it will not be recorded twice.',
       retry: true,
     }
   }
   if (!(err instanceof ApiError)) return { title: generalMessage(err), retry: true }
   switch (err.code) {
     case 'shift.already_open':
+      // openShift null: the shift was closed meanwhile, so "already clocked in" would be wrong.
+      if (!err.problem?.openShift) return { tone: 'warning', title: 'Your shift was changed in another tab.', text: 'We reloaded it. Check the screen and try again.' }
       return { tone: 'warning', title: 'You are already clocked in.', text: 'This can happen when you use another tab. We updated this page and recorded nothing new.' }
     case 'shift.not_open':
       return { tone: 'warning', title: 'You are not clocked in any more.', text: 'This can happen when you use another tab. We updated this page and recorded nothing new.' }
@@ -42,6 +44,11 @@ export default function describeFailure(err) {
 export function isExpectedShift(intent, shift) {
   if (!shift || typeof shift !== 'object' || shift.shiftId == null || typeof shift.clockIn?.zurich !== 'string') return false
   return intent === 'clock-in' ? shift.clockOut == null : typeof shift.clockOut?.zurich === 'string'
+}
+
+export const NO_KEY = {
+  title: "This page can't send a punch safely.",
+  text: 'Nothing was recorded. Open ClockManager over https (or on this computer at localhost) and try again.',
 }
 
 export const UNEXPECTED_ANSWER = {

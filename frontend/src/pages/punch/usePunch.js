@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { getStatus, punch } from '../../api/punches.js'
+import newKey from '../../lib/newKey.js'
 import { createPunchController } from './punchMachine.js'
 
 /** Wires the punch controller to React. All rules live in punchMachine.js. */
@@ -7,7 +8,7 @@ export default function usePunch() {
   const [controller] = useState(() =>
     createPunchController({
       api: { getStatus, punch },
-      newKey: () => crypto.randomUUID(),
+      newKey,
       now: () => performance.now(), // clock-ok: monotonic duration clock, marks when the server time arrived
     }),
   )
