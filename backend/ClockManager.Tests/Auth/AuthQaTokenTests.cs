@@ -179,11 +179,10 @@ public sealed class AuthQaTokenTests(MigratedDatabaseFixture database) : IClassF
 
     /// <summary>
     /// A token that is genuine but names nobody (sub of an employee that no longer exists, or no sub at all) is "not signed in"
-    /// (401) on /me and /status. On a manager endpoint the policy handler just fails, so the same token gets 403
-    /// <c>auth.forbidden</c>: the UI would show "not allowed" instead of sending the user to the login page.
+    /// (401) on /me and /status, and on a manager endpoint too (QA-45; the policy used to answer 403
+    /// <c>auth.forbidden</c>): the UI would show "not allowed" instead of sending the user to the login page.
     /// </summary>
-    [SqlServerFact(Skip = "QA-45 open: a genuine token for an unknown or missing employee is 401 on /api/me/* but 403 auth.forbidden on /api/manager/*; expected 401 everywhere.")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA45_a_token_for_nobody_is_401_on_manager_endpoints_too()
     {
         await using var factory = AuthQa.NewHost(database);
@@ -203,9 +202,9 @@ public sealed class AuthQaTokenTests(MigratedDatabaseFixture database) : IClassF
         Assert.True(failures.Count == 0, string.Join("; ", failures));
     }
 
-    /// <summary>Pins today's answer for the case above, so the skipped test has a passing twin.</summary>
+    /// <summary>A forged-role claim for nobody is the same 401 and opens nothing (inactive or non-manager employees stay 403).</summary>
     [SqlServerFact]
-    public async Task Today_a_token_for_nobody_is_403_on_manager_endpoints_and_never_opens_anything()
+    public async Task A_Manager_role_token_for_nobody_is_401_and_never_opens_anything()
     {
         await using var factory = AuthQa.NewHost(database);
         var options = Options(factory);
@@ -213,8 +212,8 @@ public sealed class AuthQaTokenTests(MigratedDatabaseFixture database) : IClassF
 
         var reply = await CookieGetAsync(client, "/api/manager/employees", Mint(options, "2000000000", role: "Manager"));
 
-        Assert.Equal(HttpStatusCode.Forbidden, reply.Status);
-        Assert.Equal("auth.forbidden", reply.Code);
+        Assert.Equal(HttpStatusCode.Unauthorized, reply.Status);
+        Assert.Equal("auth.unauthenticated", reply.Code);
     }
 
     // ---- Where a token may travel ----

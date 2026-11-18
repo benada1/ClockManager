@@ -144,11 +144,10 @@ public sealed class AuthQaRateLimitTests(MigratedDatabaseFixture database) : ICl
     }
 
     /// <summary>
-    /// The partition key is the full address text. An IPv6 client usually owns a whole /64 (2^64 addresses), so with the
-    /// per-IP limit as the only brute-force defence (no per-account lockout, D-054) the budget can be multiplied at will.
+    /// The partition is the IPv6 /64 (an IPv6 client usually owns a whole /64 = 2^64 addresses, QA-46), and an IPv4-mapped IPv6
+    /// address counts as its IPv4 address. A neighbouring /64 and a different IPv4 address have their own budgets.
     /// </summary>
-    [SqlServerFact(Skip = "QA-46 open: the login/signup limiter partitions on the full IP text, so one IPv6 /64 (or any rotating-address client) gets a fresh budget per address; expected one shared budget per /64.")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA46_addresses_in_one_IPv6_64_share_one_login_budget()
     {
         await using var factory = Host(authLimit: 3);
@@ -158,19 +157,19 @@ public sealed class AuthQaRateLimitTests(MigratedDatabaseFixture database) : ICl
         for (var i = 1; i <= 12; i++) statuses.Add((await WrongLoginAsync(client, $"2001:db8:abcd:12::{i:x}")).Status);
 
         Assert.Equal(9, statuses.Count(s => s == HttpStatusCode.TooManyRequests)); // 3 pass, 9 limited
+        Assert.Equal(HttpStatusCode.Unauthorized, (await WrongLoginAsync(client, "2001:db8:abcd:13::1")).Status); // next /64: own budget
     }
 
-    /// <summary>Today's behaviour of the case above: every address in the /64 starts a new budget.</summary>
     [SqlServerFact]
-    public async Task Today_every_address_in_an_IPv6_64_has_its_own_budget()
+    public async Task An_IPv4_mapped_IPv6_address_shares_the_budget_of_its_IPv4_address()
     {
-        await using var factory = Host(authLimit: 3);
+        await using var factory = Host(authLimit: 2);
         using var client = factory.CreateClient();
 
-        var statuses = new List<HttpStatusCode>();
-        for (var i = 1; i <= 12; i++) statuses.Add((await WrongLoginAsync(client, $"2001:db8:abcd:12::{i:x}")).Status);
-
-        Assert.DoesNotContain(HttpStatusCode.TooManyRequests, statuses);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await WrongLoginAsync(client, "198.51.100.7")).Status);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await WrongLoginAsync(client, "::ffff:198.51.100.7")).Status);
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await WrongLoginAsync(client, "198.51.100.7")).Status);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await WrongLoginAsync(client, "198.51.100.8")).Status);
     }
 
     [SqlServerFact]

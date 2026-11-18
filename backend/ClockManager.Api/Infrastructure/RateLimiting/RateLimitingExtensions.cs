@@ -28,7 +28,7 @@ public static class RateLimitingExtensions
             limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             limiter.AddPolicy(AuthPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
-                http.Connection.RemoteIpAddress?.ToString() ?? "unknown-ip",
+                PartitionKey(http.Connection.RemoteIpAddress),
                 _ => Window(limits.AuthPermitLimit, limits.AuthWindowSeconds)));
 
             // Not signed in: no limit here (the 401 comes next). The partition is the token's subject, so it needs UseAuthentication first.
@@ -60,6 +60,18 @@ public static class RateLimitingExtensions
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// IPv4-mapped IPv6 counts as the IPv4 address; any other IPv6 address counts as its /64 (one subscriber owns 2^64 of them,
+    /// QA-46). X-Forwarded-For stays ignored (D-053).
+    /// </summary>
+    internal static string PartitionKey(System.Net.IPAddress? address)
+    {
+        if (address is null) return "unknown-ip";
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6) return address.ToString();
+        return "v6/" + Convert.ToHexString(address.GetAddressBytes().AsSpan(0, 8));
     }
 
     private static FixedWindowRateLimiterOptions Window(int permits, int seconds) => new()

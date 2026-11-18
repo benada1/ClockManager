@@ -1,4 +1,5 @@
 using ClockManager.Api.Application.Employees;
+using ClockManager.Api.Common.Errors;
 using ClockManager.Api.Domain;
 using Microsoft.AspNetCore.Authorization;
 
@@ -19,8 +20,11 @@ public static class ManagerPolicy
     {
         protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, Requirement requirement)
         {
+            if (context.User.Identity?.IsAuthenticated != true) return; // anonymous: the policy's own challenge answers 401
             var ct = http.HttpContext?.RequestAborted ?? CancellationToken.None;
-            var employee = await current.GetAsync(ct);
+            // Nobody (deleted employee, bad sub) is "not signed in": 401 like /api/me/*, not 403 (QA-45).
+            var employee = await current.GetAsync(ct)
+                ?? throw new AppException(ErrorCodes.Unauthenticated, StatusCodes.Status401Unauthorized, "You are not signed in.", "Sign in to continue. Your session may have expired.");
             if (employee is { IsActive: true, Role: EmployeeRole.Manager }) context.Succeed(requirement);
         }
     }
