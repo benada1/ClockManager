@@ -131,6 +131,8 @@ internal sealed class PunchApiFactory(
                 var message = formatter(state, exception);
                 // TestServer has no body-size feature, so [RequestSizeLimit] warns on every request here (Kestrel does not): not a finding.
                 if (message.Contains("request body size limit could not be applied", StringComparison.Ordinal)) return;
+                // Linux warns once when ASP.NET creates its first internal key (no encryptor): environment noise, not app behaviour.
+                if (category.StartsWith("Microsoft.AspNetCore.DataProtection", StringComparison.Ordinal)) return;
                 sink.Enqueue(new LogEntry(logLevel, category, message, exception));
             }
         }
