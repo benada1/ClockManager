@@ -14,9 +14,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().ExcludeDevelopmentOnlyControllers(builder.Environment)
     .AddJsonOptions(o =>
     {
-        // Signup and login refuse a member that appears twice, like the punch body (QA-41, D-041).
+        // Signup, login and corrections refuse a member that appears twice, like the punch body (QA-41, D-041).
         o.JsonSerializerOptions.Converters.Add(new DuplicateFreeJsonConverter<ClockManager.Api.Application.Auth.SignupRequest>());
         o.JsonSerializerOptions.Converters.Add(new DuplicateFreeJsonConverter<ClockManager.Api.Application.Auth.LoginRequest>());
+        o.JsonSerializerOptions.Converters.Add(new DuplicateFreeJsonConverter<ClockManager.Api.Application.Manager.CorrectionRequest>());
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
