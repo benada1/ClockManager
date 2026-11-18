@@ -27,13 +27,13 @@ in a few seconds, without instructions. Read `CLAUDE.md` first and follow it str
 - **Clear state at a glance:** the user always knows whether they are clocked in, and what just happened. Show the result of an action
   right where they clicked, in a way that isn't missed (and is announced to screen readers).
 - **Forgiving forms:** visible labels (not placeholder-only), inline field errors next to the field, no data lost on an error,
-  the right keyboard on phones (`type`, `autocomplete`, `inputmode`), Enter submits.
+  the right input types and `autocomplete`, Enter submits.
 - **Every state is designed,** not just the happy path: loading, empty, success, error, offline, session ended.
   Prefer calm inline messages and banners over pop-ups and dialogs.
-- **Mobile first,** then wider screens. Touch targets of at least 44 px.
+- **Desktop first:** the app is used on a PC. Design for a normal desktop window; a phone only needs to not break (no overflow, readable). Controls are comfortably large.
 - Accessible by default: real `<button>`s and `<label>`s, visible focus rings, color contrast of at least 4.5:1, never color alone
   to carry meaning, `aria-live` for status messages, full keyboard use, respect `prefers-reduced-motion`.
-- Before reporting done, look at each screen at phone and desktop width and ask: "could someone who has never seen this use it?"
+- Before reporting done, check each screen at a desktop width (and that nothing breaks when narrow) and ask: "could someone who has never seen this use it?"
 
 ## Tailwind rules
 - Style with Tailwind utility classes. Tailwind v4 with the official Vite plugin (`@tailwindcss/vite`); add it in the first UI step and record the
