@@ -774,6 +774,9 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-18 | The manager policy answered 403 for a token naming a missing employee | Inconsistent with 401 on `/api/me/*`, so the UI would not send the user to login (QA-45) | The policy answers 401 | `6f28d4b` |
 | 2026-11-18 | README told people to run `dotnet user-secrets`, but the project had no secrets id | Every such command failed, so the manager login and the other database options could not be set up from the docs (F1) | Added `UserSecretsId` and a test | `9f28b2d` |
 | 2026-11-18 | The login rate-limit test used a 1 s window, shorter than four password hashes in a Debug build | It failed on every run on the dev machine once the suite ran alone | Window is 5 s, wait is 6.5 s | `b23618b` |
+| 2026-11-18 | A correction body with a repeated field was accepted (last one won) | Login and punches already refused this; the audit row could record a value the manager never saw in the request | Same duplicate guard on the correction body | `22bf1c9` |
+| 2026-11-18 | The problems list indexed the first flag of every row | One row with no flag would crash the whole manager list | Such a row shows as "unknown" | `3783e19` |
+| 2026-11-18 | CLAUDE.md listed the stack twice | Looked like a bad merge in a file reviewers read | One line kept | `7517ef0` |
 
 ## Known limitations
 
