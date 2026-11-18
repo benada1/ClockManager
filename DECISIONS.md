@@ -683,6 +683,14 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Week with a clock change, overnight shift, open shift in History | Hours from UTC; shift stays on its clock-in day; open shift listed, not counted | `ShiftHistoryApiTests`, `ShiftHistoryBuilderTests` |
 | Manager types a time in the skipped March hour or the repeated October hour | Skipped: refused. Repeated: only with an explicit offset, never guessed | `CorrectionInputTests`, `manager.test.js` |
 | Correction that overlaps, touches another shift, is in the future or changes nothing | 409 `correction.overlap` / 422 `correction.in_future` / 422 `correction.unchanged` | `ManagerApiTests` |
+| Punch answer lost, then "Try again" | Must replay the SAME intent and key, never the opposite punch | `punchMachine.qa.test.js` (QA-27) |
+| Manager saves an untouched correction form on a punch that has seconds | Must be refused as "already the current time" | `correction.qa.test.js` (QA-28) |
+| Keyboard focus on the main punch button | Needs a visible focus style on the blue block | open (QA-29) |
+| Time text without an offset reaches the Zurich formatter | Must be refused, never read in the browser zone | `zurich.qa.test.js` (QA-30) |
+| `crypto.randomUUID` missing (plain http on a host name) | The punch must show a message, not do nothing | `punchMachine.qa.test.js` (QA-31) |
+| Login/signup field errors | Should move focus or be announced | open (QA-33) |
+| Long unbroken names or reasons | Must wrap, not scroll the page | open (QA-34) |
+| More than 100 problems in the list | The page must say it shows the newest 100 | open (QA-35) |
 
 ## Not done (out of scope)
 
