@@ -181,3 +181,16 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** the snapshot is read before the state check, so it can never be newer than the state it is paired with, and
   `time.went_backwards` also triggers the stored-record replay (D-043). The tests are un-skipped, stable over 10 runs, and fail
   without the fix; the lenient twins that tolerated the 503 were tightened.
+
+## 2026-11-18 — the monotonic guard was not atomic with the write (QA-23)
+
+- **Asked:** Phase 3 step 2, the punch service with the monotonic guard (D-030).
+- **What went wrong:** Claude read the employee's latest punch, checked the trusted instant against it, and wrote the shift later
+  with nothing tying the two together. A punch that stalled in between while the other tab did in + out was stored with an instant
+  not later than the new last punch: overlapping or touching shifts. The DB constraints (one open shift, out after in) could not
+  catch it because none of them compares two shifts.
+- **Found by:** the qa agent (QA-23): an 80-request mixed storm that failed in most runs (skipped until this fix).
+- **Fix:** the save transaction first takes an update lock on the employee's row, then re-runs the guard and writes (D-044).
+  Punches of one employee queue for one short transaction; other employees are unaffected. The storm test is un-skipped, ran
+  10 times in a row, and fails without the fix (`shifts overlap or touch: ...`); a deterministic test holds the lock from a
+  second connection and shows the punch waits, then gets 409 or succeeds after release.

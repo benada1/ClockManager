@@ -140,13 +140,13 @@ public sealed class PunchQaConcurrencyTests(MigratedDatabaseFixture database) : 
         Assert.All(shifts.Where(s => s.OutUtc is not null), s => Assert.True(s.OutUtc > s.InUtc));
     }
 
-    [SqlServerFact(Skip = "QA-23 open: the monotonic guard is not atomic with the INSERT, so a punch stalled between them can land before a newer punch of the same employee (shifts overlap).")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA23_a_storm_never_leaves_overlapping_or_touching_shifts()
     {
         for (var round = 0; round < 6; round++)
         {
-            var (_, shifts, _) = await RunStormAsync();
+            var (replies, shifts, _) = await RunStormAsync();
+            Assert.DoesNotContain(replies, r => r.Status == HttpStatusCode.InternalServerError); // a SQL 1205 deadlock would be a 500
             DateTimeOffset? previousEnd = null;
             foreach (var s in shifts.OrderBy(s => s.InUtc).ThenBy(s => s.Id))
             {
@@ -154,6 +154,89 @@ public sealed class PunchQaConcurrencyTests(MigratedDatabaseFixture database) : 
                     Assert.True(s.InUtc > previousEnd, "shifts overlap or touch: " + string.Join(" | ", shifts.OrderBy(x => x.InUtc).Select(x => $"{x.Id}:{x.InUtc:O}->{x.OutUtc:O}")));
                 previousEnd = s.OutUtc ?? s.InUtc;
             }
+        }
+    }
+
+    /// <summary>
+    /// D-044, deterministic. A second connection holds the employee's row lock, so the punch stops at the lock (after its
+    /// provider call and first guard). While it waits, another "tab" stores a shift that ends AFTER the punch's trusted
+    /// instant. On release the re-run guard must refuse the punch (409), where before the fix it was stored overlapping.
+    /// </summary>
+    [SqlServerFact]
+    public async Task A_punch_waits_for_the_employee_lock_and_then_refuses_an_instant_that_is_no_longer_later()
+    {
+        var clock = new FakeTrustedClock("2026-01-12T07:00:05Z");
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+        using var cts = new CancellationTokenSource(Limit);
+
+        await using var holder = new SqlConnection(database.ConnectionString);
+        await holder.OpenAsync(cts.Token);
+        await using var held = (SqlTransaction)await holder.BeginTransactionAsync(cts.Token);
+        await Run(holder, held, $"SELECT Id FROM Employees WITH (UPDLOCK, ROWLOCK) WHERE Id = {employeeId}");
+
+        var punch = SendAsync(client, ClockIn, user, null, cts.Token);
+        await WaitUntilBlockedOnLockAsync(punch, cts.Token);
+        Assert.False(punch.IsCompleted, "the punch must wait for the employee lock");
+
+        // The other tab's in + out (07:00:00 -> 07:00:10) lands while our punch waits. The FK check only needs a shared lock.
+        var row = ShiftRows.ValidClosed(employeeId);
+        row["ClockOut_Utc"] = new DateTimeOffset(2026, 1, 12, 7, 0, 10, TimeSpan.Zero);
+        await ShiftRows.InsertAsync(database.ConnectionString, row);
+        await held.CommitAsync(cts.Token);
+
+        var reply = await punch.WaitAsync(cts.Token);
+        Assert.Equal(HttpStatusCode.Conflict, reply.Status);
+        Assert.Equal(1, await Count("Shifts", employeeId));
+        Assert.Equal(0, await Count("IdempotencyRecords", employeeId));
+    }
+
+    [SqlServerFact]
+    public async Task A_punch_waits_for_the_employee_lock_and_succeeds_after_release_while_other_employees_are_not_blocked()
+    {
+        var clock = new FakeTrustedClock("2026-01-12T07:00:05Z");
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+        var (_, otherUser) = await AddEmployeeAsync();
+        using var cts = new CancellationTokenSource(Limit);
+
+        await using var holder = new SqlConnection(database.ConnectionString);
+        await holder.OpenAsync(cts.Token);
+        await using var held = (SqlTransaction)await holder.BeginTransactionAsync(cts.Token);
+        await Run(holder, held, $"SELECT Id FROM Employees WITH (UPDLOCK, ROWLOCK) WHERE Id = {employeeId}");
+
+        var punch = SendAsync(client, ClockIn, user, null, cts.Token);
+        await WaitUntilBlockedOnLockAsync(punch, cts.Token);
+
+        var other = await SendAsync(client, ClockIn, otherUser, null, cts.Token); // another employee: not blocked
+        Assert.Equal(HttpStatusCode.Created, other.Status);
+        Assert.False(punch.IsCompleted);
+
+        await held.CommitAsync(cts.Token);
+        Assert.Equal(HttpStatusCode.Created, (await punch.WaitAsync(cts.Token)).Status);
+        Assert.Equal(1, await Count("Shifts", employeeId));
+    }
+
+    private static async Task Run(SqlConnection connection, SqlTransaction transaction, string sql)
+    {
+        await using var command = new SqlCommand(sql, connection, transaction);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Waits until a request of the test database is blocked on an update lock (LCK_M_U), i.e. the punch reached the lock.</summary>
+    private async Task WaitUntilBlockedOnLockAsync(Task<Reply> punch, CancellationToken ct)
+    {
+        await using var connection = new SqlConnection(database.ConnectionString);
+        await connection.OpenAsync(ct);
+        while (true)
+        {
+            Assert.False(punch.IsCompleted, "the punch finished instead of waiting for the lock");
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM sys.dm_exec_requests WHERE database_id = DB_ID() AND wait_type = 'LCK_M_U'";
+            if ((int)(await command.ExecuteScalarAsync(ct))! > 0) return;
+            await Task.Delay(20, ct);
         }
     }
 

@@ -85,11 +85,12 @@ public sealed class PunchService(
         var trusted = TrustedInstantRules.Normalize(await trustedClock.GetNowAsync(ct));
 
         // 5. Monotonic guard. A punch saved by another request during our call → 409 with the current open shift.
-        await EnsureLaterThanLastPunchAsync(employee.Id, trusted, lastBefore, async () =>
+        Func<Task<AppException>> conflict = async () =>
         {
             var current = await FindOpenShiftAsync(employee.Id, tracked: false, CancellationToken.None);
             return PunchErrors.AlreadyOpen(current is null ? null : ShiftViewMapper.ToView(current, rules.Value));
-        }, ct);
+        };
+        await EnsureLaterThanLastPunchAsync(employee.Id, trusted, lastBefore, conflict, ct);
 
         // 6. Save the shift and its idempotency record in one transaction.
         var shift = new Shift(employee.Id, PunchStamp.From(trusted, zurich));
@@ -97,7 +98,7 @@ public sealed class PunchService(
         PunchResult result;
         try
         {
-            result = await SaveShiftAndRecordAsync(shift, employee.Id, key, PunchRequest.ClockIn, trusted, ct);
+            result = await SaveShiftAndRecordAsync(shift, employee.Id, key, PunchRequest.ClockIn, trusted, lastBefore, conflict, ct);
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex, IdempotencyRecordConfiguration.EmployeeKeyIndex))
         {
@@ -132,14 +133,15 @@ public sealed class PunchService(
 
         // 5. Monotonic guard. Covers Shift.Close's "out after in" too, so Close can't throw for a backwards time.
         //    A punch saved by another request during our call (another tab closed the shift) → 409 not open.
-        await EnsureLaterThanLastPunchAsync(employee.Id, trusted, lastBefore, () => Task.FromResult(PunchErrors.NotOpen()), ct);
+        Func<Task<AppException>> conflict = () => Task.FromResult(PunchErrors.NotOpen());
+        await EnsureLaterThanLastPunchAsync(employee.Id, trusted, lastBefore, conflict, ct);
 
         // 6. Save the shift and its idempotency record in one transaction.
         shift.Close(PunchStamp.From(trusted, zurich));
         PunchResult result;
         try
         {
-            result = await SaveShiftAndRecordAsync(shift, employee.Id, key, PunchRequest.ClockOut, trusted, ct);
+            result = await SaveShiftAndRecordAsync(shift, employee.Id, key, PunchRequest.ClockOut, trusted, lastBefore, conflict, ct);
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex, IdempotencyRecordConfiguration.EmployeeKeyIndex))
         {
@@ -163,11 +165,22 @@ public sealed class PunchService(
     /// Step 6, one transaction, still AFTER the provider call (D-028, D-032): write the shift (the INSERT or the closing
     /// UPDATE), build the response from the saved row (a new shift's Id exists only now), store it as the idempotency
     /// record, commit. If anything fails, the transaction rolls back and neither row exists.
+    /// <para>
+    /// D-044 (QA-23): the first statement takes an update lock on the employee's row, which serialises the punches of ONE
+    /// employee (other employees are untouched) from here to the commit, and the monotonic guard runs again under it.
+    /// Without this the guard (read earlier) and the write were not atomic, so a stalled punch could be stored with an
+    /// instant not later than a newer punch of the same employee. Lock order in every path: Employees row, then
+    /// Shifts, then IdempotencyRecords. The lock is held for the lock, one read, two writes and the commit; never
+    /// across the provider call.
+    /// </para>
     /// </summary>
     private async Task<PunchResult> SaveShiftAndRecordAsync(
-        Shift shift, int employeeId, Guid key, string wireIntent, TrustedInstant trusted, CancellationToken ct)
+        Shift shift, int employeeId, Guid key, string wireIntent, TrustedInstant trusted,
+        Instant? lastBefore, Func<Task<AppException>> conflict, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await LockEmployeeAsync(employeeId, ct);
+        await EnsureLaterThanLastPunchAsync(employeeId, trusted, lastBefore, conflict, ct);
         await db.SaveChangesAsync(ct);
 
         var view = ShiftViewMapper.ToView(shift, rules.Value);
@@ -179,6 +192,14 @@ public sealed class PunchService(
         await transaction.CommitAsync(ct);
         return new PunchResult(StatusCodes.Status201Created, view);
     }
+
+    /// <summary>
+    /// Update lock on the employee's row (D-044). Plain readers of Employees (shared locks) are not blocked; a second
+    /// punch of the same employee waits here until the first commits or rolls back. The FK checks of the Shifts and
+    /// IdempotencyRecords inserts only need a shared lock on this row, which our own transaction's update lock allows.
+    /// </summary>
+    private Task LockEmployeeAsync(int employeeId, CancellationToken ct) =>
+        db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [Employees] WITH (UPDLOCK, ROWLOCK) WHERE [Id] = {employeeId}", ct);
 
     private Task<IdempotencyRecord?> FindRecordAsync(int employeeId, Guid key, CancellationToken ct) =>
         db.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(r => r.EmployeeId == employeeId && r.Key == key, ct);
