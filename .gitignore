@@ -486,3 +486,6 @@ $RECYCLE.BIN/
 # Claude Code: personal settings stay local; shared settings are committed
 .claude/settings.local.json
 .env.*
+
+# Private study notes (never committed)
+STUDY-NOTES.md
