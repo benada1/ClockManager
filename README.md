@@ -75,6 +75,18 @@ If no server is reachable, the integration tests are **skipped** locally (the re
 `CI=true` they **fail**. GitHub Actions starts a SQL Server 2022 container with a password generated in each
 run, so the integration tests run on every push (D-026).
 
+## Try the app (Phases 4–5)
+
+Start the backend and the frontend (see Run locally), open http://localhost:5173 and check by hand:
+1. **Sign up** with a new username, then you land on the punch screen (signup logs you in).
+2. **Clock in:** the screen shows "You clocked in at HH:mm (Zurich time)".
+3. **Second tab:** open the app in another tab and press Clock in there: you get a clear "already clocked in" message.
+4. **Clock out:** the screen shows "You clocked out at HH:mm (Zurich time)" and how long you worked.
+5. **Time provider down:** turn off the network and punch: you see "can't get a trusted time", nothing is saved, and Try again works later.
+6. **Log out**, then try the punch URL again: you are sent to the login page.
+
+`npm run dev:mock` (in `frontend/`) shows every screen state without the backend, e.g. `?mock=forgotten`, `?mock=unavailable`, `?mock=conflict`, `?mock=expired`.
+
 ## Login (Phase 4)
 
 Sign up and log in with `POST /api/auth/signup` and `POST /api/auth/login` (body `{ username, displayName, password }` or

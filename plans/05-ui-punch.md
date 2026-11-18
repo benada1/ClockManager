@@ -1,6 +1,6 @@
 # 05 — Frontend: sign up, log in and punch
 
-**Status:** Approved 2026-11-18 · Steps 1–2 done (screens built against the mock, D-045..D-048) · Step 3 (connect to the real login) next · **Lead agent:** frontend
+**Status:** Done 2026-11-18 · Steps 1–2 `56527dd` (screens against the mock) · Step 3 checked against the real backend by script through the proxy (signup, cookie, clock in/out, replay, 409, logout, 401): all as expected · Still to do by hand: look at the screens in a browser and the two-tab / provider-down checklist in the README
 **Refs:** master plan §4 "UI misinformation risks" · CLAUDE.md §5 (frontend) and rule 1 · API contract: plan 04 §3, plus the Phase 3 endpoints
 
 ## 1. Goal

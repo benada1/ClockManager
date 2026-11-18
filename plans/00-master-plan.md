@@ -182,16 +182,16 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 - [x] Integration tests: parallel clock-ins (exactly one wins), replay, two-tab scenario, provider down → 503 and **no row written**.
 
 ### Phase 4 — Auth (`plans/04-auth.md`)
-- [ ] Cookie auth, login/logout endpoints, seeded hashed passwords, `[Authorize(Roles=...)]`.
-- [ ] Antiforgery/SameSite handling for the Vite proxy setup.
-- [ ] Tests: unauthenticated → 401; an employee can't read or punch for others → 403/404.
-- [ ] Rate limiting on login and punch endpoints (`Microsoft.AspNetCore.RateLimiting`).
+- [x] Cookie auth, login/logout endpoints, seeded hashed passwords, `[Authorize(Roles=...)]`.
+- [x] Antiforgery/SameSite handling for the Vite proxy setup.
+- [x] Tests: unauthenticated → 401; an employee can't read or punch for others → 403/404.
+- [x] Rate limiting on login and punch endpoints (`Microsoft.AspNetCore.RateLimiting`).
 
 ### Phase 5 — Frontend: punch and status (`plans/05-ui-punch.md`)
-- [ ] `src/api/` client (fetch, ProblemDetails parsing, idempotency key per attempt via `crypto.randomUUID()`).
-- [ ] Login page, punch screen: big Clock In/Out button, disabled while in flight, server-time clock labeled with its source.
-- [ ] States: loading, ready, in-flight, 409 (refresh + explain), 503 (banner + retry), offline, session expired.
-- [ ] Refresh on focus/visibility; Zurich formatting helper; accessibility pass (labels, focus, `aria-live` for results).
+- [x] `src/api/` client (fetch, ProblemDetails parsing, idempotency key per attempt via `crypto.randomUUID()`).
+- [x] Login page, punch screen: big Clock In/Out button, disabled while in flight, server-time clock labeled with its source.
+- [x] States: loading, ready, in-flight, 409 (refresh + explain), 503 (banner + retry), offline, session expired.
+- [x] Refresh on focus/visibility; Zurich formatting helper; accessibility pass (labels, focus, `aria-live` for results).
 - [ ] `npm run build` + `npm run lint` clean; manual test of two tabs + provider-down (toggle via a dev config flag).
 
 ### Phase 6 — History and reports (`plans/06-history.md`)
