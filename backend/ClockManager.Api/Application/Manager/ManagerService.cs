@@ -103,7 +103,7 @@ public sealed class ManagerService(
             s.EmployeeId,
             names[s.EmployeeId],
             LocalDatePattern.Iso.Format(s.ClockIn.ZurichDate),
-            s.ClockOut is null ? ShiftFlags.ForgottenClockOut : ShiftFlags.For(s, r)[0],
+            s.ClockOut is null ? ShiftFlags.ForgottenClockOut : ShiftFlags.For(s, r).FirstOrDefault() ?? "unknown", // SQL and C# rules disagree: never throw
             Zurich(s.ClockIn),
             s.ClockOut is null ? null : Zurich(s.ClockOut),
             s.ClockOut is null ? null : (long)(s.ClockOut.Utc - s.ClockIn.Utc).TotalSeconds)).ToList();
