@@ -39,7 +39,7 @@ The only times shown are the ones the server sends, in **Europe/Zurich**.
 - Times are formatted only with `Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich' })` from the strings the server sends; the label says "Zurich time".
 - Never `new Date()` or `Date.now()` to create or show a punch time. (Elapsed or duration text comes from the server's `durationSeconds`.)
 - Accessible: labeled inputs, visible focus, the result message in an `aria-live` region, keyboard use, readable on a phone.
-- Small files, short comments. One `src/api/` layer using `fetch` with `credentials: 'same-origin'` (the cookie is HTTP-only, so no token handling in JavaScript).
+- Styling with **Tailwind CSS** (added in step 1, logged as a decision); clean, calm, one main action per screen. Small files, short comments. One `src/api/` layer using `fetch` with `credentials: 'same-origin'` (the cookie is HTTP-only, so no token handling in JavaScript).
 
 ## 6. Working in parallel with the backend
 - The backend plan fixes the API contract (plan 04 §3), so this plan can start at the same time. The frontend builds against the **mock mode**
@@ -50,7 +50,7 @@ The only times shown are the ones the server sends, in **Europe/Zurich**.
 ## 7. Steps and commits
 | # | Task | Commit subject (short) |
 |---|---|---|
-| 1 | API client, auth context, router guard, signup + login pages, mock mode | `feat(ui): sign up and log in pages` |
+| 1 | Add Tailwind, API client, auth context, router guard, signup + login pages, mock mode | `feat(ui): sign up and log in pages` |
 | 2 | Punch screen: status, button, Zurich times on punch, all states, focus refresh | `feat(ui): clock in and out screen` |
 | 3 | Connect to the real backend login (after plan 04 step 2), remove dev-header use, manual two-tab and provider-down check | `feat(ui): use the real login` |
 | 4 | Accessibility pass, `npm run build` + `npm run lint` clean | `chore(ui): accessibility and lint` |
