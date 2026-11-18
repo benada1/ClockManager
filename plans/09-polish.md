@@ -1,6 +1,6 @@
 # 09 — Deliverables polish
 
-**Status:** In progress 2026-11-18 · approved with defaults (CRLF recorded as a known nit, throwaway database for the clean-clone run) · Task 1 (clean clone) done, tasks 2 to 7 next
+**Status:** Done 2026-11-18 · approved with defaults (CRLF recorded as a known nit, throwaway database for the clean-clone run) · all 7 tasks finished, final gate green (see end of §7)
 **Why:** Reviewers read the README, DECISIONS.md, the worklog, CLAUDE.md, `.claude/`, the plans and the commit history. Phases 0–8 built and tested the app; this phase makes sure
 what they read is true, consistent and easy to follow from a clean clone. No new features.
 
@@ -46,3 +46,6 @@ Scripted checks for the doc claims (D-numbers, test names in edge-case rows, has
 - Tasks 2 to 7 not started.
 
 **Task 1 finished (2026-11-18):** from a fresh clone and an empty database the README steps worked. Migrations, seed (manager, alice, bob, carol), `dotnet run` in Development, signup and a real punch on a spare port, all 1068 backend tests and the 100 frontend tests passed. Nothing in the README had to change for this path. The lint warning was real and is fixed (the first load no longer sets "loading" in an effect). The throwaway database and the clone are removed. Only the SQL Express path was run; LocalDB and Docker stay unrun (LocalDB is not installed here, Docker not tried).
+
+**Tasks 2 to 7 finished (2026-11-18):** README reading order, where-to-look map, honest "not looked at in a browser" note and the missing notes a fresh-eyes review found (Windows commands, providers down, restart after the manager password) · DECISIONS ids, hashes, test names and file references script-checked, all valid · master plan got a "What changed since this plan" section · stale skill reference fixed · secrets scan, `npm audit` and `dotnet list package --vulnerable` clean, `STUDY-NOTES.md` now in `.gitignore` · final gate: `verify` all green (1068 backend tests, 5 skipped; frontend build, lint, 100 tests; clock guard), exotic time-zone/culture run green, CI green on `94bab0b`.
+**For a person to do by hand:** look at the screens in a browser (README "Try the app by hand"); run the LocalDB or Docker database option if wanted.
