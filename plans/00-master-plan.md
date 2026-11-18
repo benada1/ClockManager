@@ -212,9 +212,9 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 - [ ] Optional: Playwright e2e smoke (login → clock in → clock out → history).
 
 ### Phase 9 — Deliverables polish
-- [ ] README: prerequisites, LocalDB setup, Docker SQL Server alternative, user-secrets, run backend and frontend, run tests, seeded logins.
-- [ ] DECISIONS.md complete: decisions, edge cases → handling → test, not done, known limits.
-- [ ] `docs/claude-worklog.md` reviewed: where Claude helped and where it had to be corrected.
+- [x] README: prerequisites, LocalDB setup, Docker SQL Server alternative, user-secrets, run backend and frontend, run tests, seeded logins.
+- [x] DECISIONS.md complete: decisions, edge cases → handling → test, not done, known limits.
+- [x] `docs/claude-worklog.md` reviewed: where Claude helped and where it had to be corrected.
 - [ ] All plans marked with their final status; clean commit history; repo pushed to GitHub; reviewer access granted.
 
 ## 6. Risks

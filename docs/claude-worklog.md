@@ -220,3 +220,9 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Asked:** finish Phase 8 (History numbers, whole-stack run, final checks).
 - **What went wrong in Claude's work:** the login rate-limit test used a 1 s window shorter than four password hashes, so it failed on every solo run (the full suite hid it). A correction body accepted a repeated field, the last one winning, although login and punches already refused that. The problems list could crash on one row. CLAUDE.md had a duplicated stack line.
 - **Fix:** each its own commit. 64 History QA tests found no bug. Other review findings are low and listed in DECISIONS (known limits).
+
+## 2026-11-18 — Phase 9: polish found small leftovers in Claude's own files
+
+- **Asked:** make the README, DECISIONS, plans and `.claude/` true and consistent, and test the README from a clean clone.
+- **What was wrong:** a lint warning had been left in a login component although CLAUDE.md says lint must be clean; a skill example pointed to a plan file and a test name that do not exist; the README still used "Phase N" headings and had no map for a reviewer. The clean-clone run itself found nothing wrong in the README steps.
+- **Fix:** each as its own commit. Scripted checks found the decision ids, commit hashes, test names and file references in DECISIONS.md all valid.

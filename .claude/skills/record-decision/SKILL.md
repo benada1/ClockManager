@@ -47,7 +47,7 @@ already requires (unless you are changing it).
 - **Decision:** (c), plus a secondary provider tried before rejecting.
 - **Why:** (a) breaks the core rule; (b) creates records with an uncertain time and complex reconciliation.
 - **Trade-offs:** An employee cannot punch during a full outage; the UI shows a clear retry message.
-- **Refs:** plans/02-trusted-clock.md · `TrustedClockTests.FailsClosedWhenAllProvidersDown`
+- **Refs:** plans/01-trusted-clock.md · `TrustedClockTests.Fails_closed_when_both_fail_E5_E6`
 ```
 
 Get the date for the entry from the conversation context or `git log -1 --format=%cs`. This
