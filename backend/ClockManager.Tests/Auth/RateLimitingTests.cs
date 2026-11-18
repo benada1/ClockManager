@@ -17,7 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ClockManager.Tests.Auth;
 
-/// <summary>429 on login (per IP) and on punches (per employee), with a tiny limit and a 1-second window (the other tests use huge limits).</summary>
+/// <summary>429 on login (per IP) and on punches (per employee), with a tiny limit and a 5-second window (the other tests use huge limits).</summary>
 [Trait("Category", "Integration")]
 public sealed class RateLimitingTests(MigratedDatabaseFixture database) : IClassFixture<MigratedDatabaseFixture>
 {
@@ -45,7 +45,7 @@ public sealed class RateLimitingTests(MigratedDatabaseFixture database) : IClass
         using var otherIp = await LoginAsync(client, name, "10.0.0.2");
         Assert.Equal(HttpStatusCode.OK, otherIp.StatusCode);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(3000)); // window is 1 s; wide margin for a busy machine
+        await Task.Delay(TimeSpan.FromMilliseconds(6500)); // window is 5 s: 4 slow hashes must fit in it
         using var afterWindow = await LoginAsync(client, name, "10.0.0.1");
         Assert.Equal(HttpStatusCode.OK, afterWindow.StatusCode);
     }
@@ -79,7 +79,7 @@ public sealed class RateLimitingTests(MigratedDatabaseFixture database) : IClass
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["RateLimits:AuthPermitLimit"] = authLimit.ToString(CultureInfo.InvariantCulture),
-                ["RateLimits:AuthWindowSeconds"] = "1",
+                ["RateLimits:AuthWindowSeconds"] = "5",
                 ["RateLimits:PunchPermitLimit"] = punchLimit.ToString(CultureInfo.InvariantCulture),
             }));
             builder.ConfigureTestServices(services => services.AddSingleton<IStartupFilter>(new TestIpFilter()));
