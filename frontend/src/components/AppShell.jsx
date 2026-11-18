@@ -1,18 +1,40 @@
 import { useState } from 'react'
 import { useAuth } from '../auth/authContext.js'
-import { href } from '../router.js'
+import { href, useHashRoute } from '../router.js'
 import Button from './Button.jsx'
 
-/** Frame of the new screens: brand, who is logged in, Log out. */
+const NAV = [
+  { path: '/', label: 'Clock' },
+  { path: '/history', label: 'History' },
+]
+
+/** Frame of the new screens: brand, the two pages, who is logged in, Log out. */
 export default function AppShell({ children }) {
   const { user, logout } = useAuth()
+  const path = useHashRoute()
   const [busy, setBusy] = useState(false)
 
   return (
     <div className="ui flex min-h-screen flex-col bg-canvas font-sans text-ink">
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between gap-4 px-4">
+        <div className="mx-auto flex min-h-16 w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2">
           <span className="text-base font-semibold">Clock Manager</span>
+          {user && (
+            <nav aria-label="Main" className="order-last flex w-full gap-1 sm:order-none sm:w-auto">
+              {NAV.map((item) => (
+                <a
+                  key={item.path}
+                  href={href(item.path)}
+                  aria-current={item.path === path ? 'page' : undefined}
+                  className={`inline-flex min-h-11 items-center rounded-ui px-4 text-base no-underline ${
+                    item.path === path ? 'bg-accent-soft font-semibold text-accent-strong' : 'text-ink hover:bg-canvas'
+                  }`}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          )}
           {user && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted">{user.displayName}</span>

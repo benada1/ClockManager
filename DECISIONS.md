@@ -475,6 +475,22 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** Vitest (node environment) tests the pure punch controller with a fake API (24 tests, `npm test`, part of `verify` and CI). Replaces the earlier "no frontend tests" note.
 - **Not done:** component and browser tests (would need jsdom and Testing Library).
 
+### D-061 — History page: week navigation by date arithmetic, no clock
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Options:** (a) Previous/Next add or subtract 7 days on the `yyyy-MM-dd` strings · (b) ask the server for the previous/next week · (c) a browser-clock "today".
+- **Decision:** (a), then request explicit `from`/`to`. The page opens on the week the server returns without parameters (the week of the latest shift).
+- **Why:** No clock is needed anywhere, and the tests cover DST weeks and the year boundary.
+- **Trade-offs:** Next can walk into empty future weeks.
+
+### D-062 — History loading: numbered requests, keep the shown week on errors
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Decision:** Every request gets a sequence number and the older one is aborted, so a stale answer can't show the wrong week. A failed load keeps the week on screen with a retry banner. Previous/Next are disabled while loading.
+
+### D-063 — History shows open shifts but doesn't count them
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend / UX
+- **Decision:** An open shift is shown as "Still open: not counted until you clock out", with no duration, and the totals count closed shifts only (as the server sends them). Times show their offset ("02:30 UTC+2 to 02:15 UTC+1") on clock-change days.
+- **Trade-offs:** A long-open shift can make a week look low; a hint next to the total explains it.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |

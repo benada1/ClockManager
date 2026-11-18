@@ -4,6 +4,7 @@ import AppShell from './components/AppShell.jsx'
 import Banner from './components/Banner.jsx'
 import Button from './components/Button.jsx'
 import Loading from './components/Loading.jsx'
+import History from './pages/History.jsx'
 import Login from './pages/Login.jsx'
 import Punch from './pages/Punch.jsx'
 import Signup from './pages/Signup.jsx'
@@ -61,7 +62,8 @@ function App() {
   const firstRender = useRef(true)
 
   const guest = path in GUEST_PAGES
-  const redirectTo = phase === 'in' && guest ? '/' : phase === 'out' && path === '/' ? '/login' : null
+  const signedInPage = path === '/' || path === '/history'
+  const redirectTo = phase === 'in' && guest ? '/' : phase === 'out' && signedInPage ? '/login' : null
 
   useEffect(() => {
     if (redirectTo) navigate(redirectTo)
@@ -101,6 +103,7 @@ function App() {
     const Page = GUEST_PAGES[path]
     content = <Page />
   } else if (path === '/') content = <Punch />
+  else if (path === '/history') content = <History />
   else content = <NotFound />
 
   return (

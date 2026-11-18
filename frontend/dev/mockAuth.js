@@ -8,6 +8,8 @@
 //                                       unavailable (503), disagree (503), flaky (503 once, then ok),
 //                                       badrequest (400), keyreused (422), toomany (429), servererror (500),
 //                                       expired (401 on punch), offlinepunch (connection drops on punch)
+// History (GET /api/me/shifts, signed in): history (normal week, overnight, long, open, DST day; older weeks too),
+//                                       historyempty (no shifts at all), historyerror (500 on the first Previous/Next click, retry works)
 // Other:  badlogin (login 401), blocked (login/signup 429), inactive (403), offline (nothing answers)
 //
 // Fixture times are fixed strings. The mock never reads a clock.
@@ -54,15 +56,82 @@ const START = {
 const SIGNED_IN = new Set([
   ...Object.keys(START),
   'conflict', 'unavailable', 'disagree', 'flaky', 'badrequest', 'keyreused', 'toomany', 'servererror',
-  'expired', 'offlinepunch', 'inactive',
+  'expired', 'offlinepunch', 'inactive', 'history', 'historyempty', 'historyerror',
 ])
 
-const state = { scenario: null, open: null, last: null, flags: [], seen: new Map(), flakyUsed: false, user: null }
+const state = { scenario: null, open: null, last: null, flags: [], seen: new Map(), flakyUsed: false, user: null, shiftCalls: 0 }
 
 function reset(name) {
   if (state.scenario === name) return
   const [open, last, flags] = (START[name] ?? START.fresh)()
-  Object.assign(state, { scenario: name, open, last, flags, seen: new Map(), flakyUsed: false })
+  Object.assign(state, { scenario: name, open, last, flags, seen: new Map(), flakyUsed: false, shiftCalls: 0 })
+}
+
+// ---- History fixtures (GET /api/me/shifts, plan 06 section 3). Fixed strings, no clock. ----
+const hs = (shiftId, workDate, inZ, outZ, durationSeconds, extra = {}) => ({
+  shiftId, workDate,
+  clockIn: { zurich: inZ },
+  clockOut: outZ ? { zurich: outZ } : null,
+  durationSeconds: outZ ? durationSeconds : null,
+  endsNextDay: Boolean(outZ) && outZ.slice(0, 10) > workDate,
+  open: !outZ,
+  flags: [],
+  ...extra,
+})
+const HISTORY = [
+  hs(1, '2026-10-21', '2026-10-21T08:00:00+02:00', '2026-10-21T16:30:00+02:00', 30600),
+  hs(2, '2026-10-24', '2026-10-24T22:00:00+02:00', '2026-10-25T06:00:00+01:00', 32400, { endsNextDay: true }), // 9 h: DST end
+  hs(3, '2026-10-25', '2026-10-25T02:30:00+02:00', '2026-10-25T02:15:00+01:00', 2700), // T6: repeated hour
+  hs(4, '2026-11-10', '2026-11-10T08:00:00+01:00', '2026-11-10T17:00:00+01:00', 32400),
+  hs(5, '2026-11-16', '2026-11-16T08:00:00+01:00', '2026-11-16T12:00:00+01:00', 14400),
+  hs(6, '2026-11-16', '2026-11-16T13:00:00+01:00', '2026-11-16T17:30:00+01:00', 16200),
+  hs(7, '2026-11-17', '2026-11-17T08:03:11+01:00', '2026-11-17T17:12:20+01:00', 32949),
+  hs(8, '2026-11-18', '2026-11-18T22:00:00+01:00', '2026-11-19T06:00:00+01:00', 28800), // overnight
+  hs(9, '2026-11-20', '2026-11-20T07:00:00+01:00', '2026-11-20T23:30:00+01:00', 59400, { flags: ['long_shift'] }),
+  hs(10, '2026-11-22', '2026-11-22T08:03:11+01:00', null, null), // still open
+]
+const DST_DAYS = ['2026-03-29', '2026-10-25']
+
+const ymd = /^(\d{4})-(\d{2})-(\d{2})$/
+const utcDay = (s) => {
+  const m = ymd.exec(s ?? '')
+  const t = m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN
+  return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== s ? null : t / 86400000
+}
+const dayStr = (n) => new Date(n * 86400000).toISOString().slice(0, 10)
+
+function shiftsAnswer(url, scenario) {
+  const q = new URL(url, 'http://mock').searchParams
+  // Counts week changes only: React StrictMode sends the first load twice in dev.
+  if (q.has('from')) state.shiftCalls += 1
+  if (scenario === 'historyerror' && q.has('from') && state.shiftCalls === 1) return problem(500, 'An unexpected error occurred.', 'server.error')
+  const rows = scenario === 'historyempty' ? [] : HISTORY
+  let from = q.get('from')
+  let to = q.get('to')
+  if (from === null && to === null) {
+    if (!rows.length) return { status: 200, body: { from: null, to: null, days: [], totalSeconds: 0 } }
+    const latest = utcDay(rows.reduce((a, s) => (s.workDate > a ? s.workDate : a), ''))
+    from = dayStr(latest - ((new Date(latest * 86400000).getUTCDay() + 6) % 7))
+    to = dayStr(utcDay(from) + 6)
+  }
+  const a = utcDay(from)
+  const b = utcDay(to)
+  const errors = {}
+  if (a === null) errors.from = ['must be a date like 2026-11-16']
+  if (b === null) errors.to = ['must be a date like 2026-11-22']
+  if (!Object.keys(errors).length && b < a) errors.to = ['must not be before "from"']
+  if (!Object.keys(errors).length && b - a > 30) errors.to = ['the range can be at most 31 days']
+  if (Object.keys(errors).length) return problem(400, 'One or more validation errors occurred.', 'request.invalid', { errors })
+
+  const days = []
+  for (const s of rows.filter((r) => r.workDate >= from && r.workDate <= to)) {
+    let day = days.find((d) => d.date === s.workDate)
+    if (!day) days.push((day = { date: s.workDate, totalSeconds: 0, notes: DST_DAYS.includes(s.workDate) ? ['dst_change'] : [], shifts: [] }))
+    day.shifts.push(s)
+    day.totalSeconds += s.durationSeconds ?? 0
+  }
+  days.sort((x, y) => (x.date < y.date ? -1 : 1))
+  return { status: 200, body: { from, to, days, totalSeconds: days.reduce((n, d) => n + d.totalSeconds, 0) } }
 }
 
 const problem = (status, title, code, extra = {}) => ({
@@ -142,6 +211,12 @@ async function route(req, scenario, authed) {
     }
   }
 
+  if (path === '/api/me/shifts') {
+    if (!authed) return unauth
+    if (scenario === 'inactive') return problem(403, 'Account is switched off.', 'employee.inactive')
+    return shiftsAnswer(req.url, scenario)
+  }
+
   if (path === '/api/punches' && req.method === 'POST') {
     if (!authed || scenario === 'expired') return unauth
     if (scenario === 'inactive') return problem(403, 'Account is switched off.', 'employee.inactive')
@@ -196,7 +271,7 @@ async function route(req, scenario, authed) {
 /** Connect-style handler: returns true when it answered the request. */
 export async function handleAuthMock(req, res, { delayMs = 400 } = {}) {
   const path = req.url?.split('?')[0] ?? ''
-  if (!/^\/api\/(auth|punches|me\/status)/.test(path)) return false
+  if (!/^\/api\/(auth|punches|me\/status|me\/shifts)/.test(path)) return false
 
   const scenario = scenarioOf(req)
   reset(START[scenario] || SIGNED_IN.has(scenario) ? scenario : 'fresh')
