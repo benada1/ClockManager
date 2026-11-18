@@ -455,6 +455,26 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** In Development, `Seed:ManagerPassword` (user-secrets or env) gives only `manager` a login, and only while it has none; re-running the seed never changes an existing hash. Other seeded users have no password.
 - **Why:** A demo login without a password in git (rule 3).
 
+### D-057 — The punch screen is two big switch blocks
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend · **Amends:** D-045..D-048 (layout only)
+- **Decision:** Clock out (left) and Clock in (right) are two large rounded blocks from the user's sketch (`docs/design/punch-screen-sketch.png`). The active one is accent-coloured with a real button; the other is grey, dashed and disabled, with the visible reason ("Not available: you are clocked in"). On phones they stack with the active block first.
+- **Why:** The app has very few features, so the screen can be simple and large. State never depends on colour alone.
+
+### D-058 — Elapsed time on the punch screen (amends D-047)
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend · **Amends:** D-047 ("no elapsed time")
+- **Decision:** While clocked in, the block shows "Clocked in for H:MM:SS", counted as `(serverNow − clockIn) + ageMs + (performance.now() − syncAt)`. It uses server times plus a monotonic stopwatch, never the browser's wall clock, and is labeled as server time. With no `serverNow` there is no counter, only "Since 08:03 (Zurich time)".
+- **Trade-offs:** `performance.now()` may pause while the computer sleeps; the next focus refresh re-syncs it. The ticking counter is hidden from screen readers; a spoken text changes about once a minute.
+
+### D-059 — The screen flips only on a confirmed success
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Decision:** The state changes only after the server answers success with the expected shift (a clock-out must have `clockOut`, a clock-in must not). No optimistic update. Any other outcome keeps the state and shows the message. One punch at a time; a punch is never aborted; status fetches are numbered and stale answers are ignored. After a success the result is shown at once and the refresh follows; a failed refresh keeps the result and shows a retry notice. The key is reused only for retryable failures (503, 429, network, 5xx).
+- **Trade-offs:** Slightly slower feel. Any 2xx with the right body counts, because the API layer returns only the body.
+
+### D-060 — Frontend logic tests with Vitest
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Decision:** Vitest (node environment) tests the pure punch controller with a fake API (24 tests, `npm test`, part of `verify` and CI). Replaces the earlier "no frontend tests" note.
+- **Not done:** component and browser tests (would need jsdom and Testing Library).
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -567,7 +587,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 
 ## Not done (out of scope)
 
-- **No frontend component tests.** The project has no frontend test tooling; the screens are checked through the mock scenarios and a manual checklist (plan 05 §8).
+- **No component or browser tests for the frontend.** Only the punch logic is tested (Vitest, D-060); the screens are checked through the mock scenarios and the manual list in the README.
 
 ## Corrections to Claude's output
 

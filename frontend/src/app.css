@@ -28,6 +28,7 @@
   --color-warn-line: #b26a00;
 
   --radius-ui: 0.5rem;
+  --radius-block: 1.5rem; /* the two big punch blocks and their button */
 }
 
 /* Small base for the new screens (what preflight would have done). */

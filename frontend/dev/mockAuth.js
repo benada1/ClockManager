@@ -2,7 +2,8 @@
 // `npm run dev:mock`. Pick a scenario with ?mock=<name> on the PAGE url, e.g. http://localhost:5173/?mock=open
 //
 // Default (no ?mock): signed out. Sign up or log in with anything (username "taken" is taken), then punch.
-// Signed-in states (no login needed):  open, closed, fresh, forgotten, longshift, dstday
+// Signed-in states (no login needed):  open, closed, fresh, forgotten, longshift, dstday,
+//                                       notime (open shift but no trusted server time: no counter)
 // Punch outcomes (signed in, closed):   conflict (409 on clock in), conflictout (open, 409 on clock out),
 //                                       unavailable (503), disagree (503), flaky (503 once, then ok),
 //                                       badrequest (400), keyreused (422), toomany (429), servererror (500),
@@ -14,6 +15,9 @@
 const IN = { utc: '2026-11-18T07:03:11.000Z', zurich: '2026-11-18T08:03:11.000+01:00' }
 const OUT = { utc: '2026-11-18T16:12:40.000Z', zurich: '2026-11-18T17:12:40.000+01:00' }
 const YESTERDAY_IN = { utc: '2026-11-17T07:03:11.000Z', zurich: '2026-11-17T08:03:11.000+01:00' }
+
+// Fixed "server now" for the elapsed counter (no clock reads): 2 h 38 min after IN.
+const SERVER_NOW = { utc: '2026-11-18T09:41:07.000Z', zurich: '2026-11-18T10:41:07.000+01:00', ageMs: 120 }
 
 const punchView = (t) => ({ ...t, provider: 'time.now', crossCheckedBy: 'timeapi.io', lowPrecision: false })
 const shift = (id, tin, tout, seconds, flags = []) => ({
@@ -45,6 +49,7 @@ const START = {
     [],
   ],
   conflictout: () => [shift('mock-open', IN, null), null, []],
+  notime: () => [shift('mock-open', IN, null), null, []],
 }
 const SIGNED_IN = new Set([
   ...Object.keys(START),
@@ -133,7 +138,7 @@ async function route(req, scenario, authed) {
     if (scenario === 'inactive') return problem(403, 'Account is switched off.', 'employee.inactive')
     return {
       status: 200,
-      body: { employee: userOf(), openShift: state.open, lastClosedShift: state.last, serverNow: null, flags: state.flags },
+      body: { employee: userOf(), openShift: state.open, lastClosedShift: state.last, serverNow: scenario === 'notime' ? null : SERVER_NOW, flags: state.flags },
     }
   }
 

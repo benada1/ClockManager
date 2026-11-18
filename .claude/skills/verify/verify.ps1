@@ -1,7 +1,7 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-  ClockManager quality gate: backend build/test, frontend build/lint, local-clock guard.
+  ClockManager quality gate: backend build/test, frontend build/lint/test, local-clock guard.
 #>
 [CmdletBinding()]
 param(
@@ -77,6 +77,7 @@ if ($Scope -in 'all', 'frontend') {
     }
     Invoke-Step 'frontend build' $fe 'npm' @('run', 'build')
     Invoke-Step 'frontend lint'  $fe 'npm' @('run', 'lint')
+    Invoke-Step 'frontend test' $fe 'npm' @('test')
 }
 
 # ---------- Clock guard (always) ----------

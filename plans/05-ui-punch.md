@@ -1,6 +1,6 @@
 # 05 — Frontend: sign up, log in and punch
 
-**Status:** Done 2026-11-18 · Steps 1–2 `56527dd` (screens against the mock) · Step 3 checked against the real backend by script through the proxy (signup, cookie, clock in/out, replay, 409, logout, 401): all as expected · Still to do by hand: look at the screens in a browser and the two-tab / provider-down checklist in the README
+**Status:** Done 2026-11-18 · Screens as two switch blocks (D-057), elapsed counter (D-058), success-only rule and tests (D-059, D-060) · Still to do by hand: look at it in a browser (see the README list)
 **Refs:** master plan §4 "UI misinformation risks" · CLAUDE.md §5 (frontend) and rule 1 · API contract: plan 04 §3, plus the Phase 3 endpoints
 
 ## 1. Goal
@@ -13,7 +13,7 @@ The only times shown are the ones the server sends, in **Europe/Zurich**.
   - clocked **in**: "You clocked in at 08:03 (Zurich time)", plus a notice if the shift is flagged as forgotten (open too long);
   - just clocked **out**: **"You clocked out at 17:12 (Zurich time)"** and the shift length, e.g. "Worked 9 h 09 min";
   - nothing open: "You are not clocked in", and the last shift's times if there is one.
-- **No live clock** and no running timer anywhere (your decision). The screen shows a time only when a punch happened.
+- **No time-of-day clock.** While clocked in, an elapsed counter shows how long the shift has run, counted from server time (D-058).
 - A header with the user's name and a **Log out** button.
 
 ## 3. Scope

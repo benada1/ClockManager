@@ -11,7 +11,7 @@ export default function AppShell({ children }) {
   return (
     <div className="ui flex min-h-screen flex-col bg-canvas font-sans text-ink">
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex min-h-16 w-full max-w-3xl items-center justify-between gap-4 px-4">
+        <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between gap-4 px-4">
           <span className="text-base font-semibold">Clock Manager</span>
           {user && (
             <div className="flex items-center gap-3">
@@ -32,8 +32,8 @@ export default function AppShell({ children }) {
           )}
         </div>
       </header>
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
-      <footer className="mx-auto w-full max-w-3xl px-4 pb-6 text-sm text-muted">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:py-8">{children}</main>
+      <footer className="mx-auto w-full max-w-5xl px-4 pb-6 text-sm text-muted">
         <a className="underline" href={href('/time-lab')}>
           Time lab (developer tool)
         </a>
