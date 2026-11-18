@@ -174,12 +174,12 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 - [ ] Tests: the DB rejects a second open shift; the DB rejects clock-out ≤ clock-in.
 
 ### Phase 3 — Punch API (`plans/03-punch-api.md`)
-- [ ] `POST /api/punches` `{ "intent": "clock-in" | "clock-out" }` + `Idempotency-Key` header. **No timestamp in the body.**
-- [ ] `PunchService`: load state → trusted time → monotonic guard → write in a transaction → map unique violation → 409.
-- [ ] Idempotency storage and replay; key-reuse detection.
-- [ ] `GET /api/me/status` (open shift, `serverNowUtc` from the trusted clock or labeled cache, flags).
-- [ ] Unit tests: every rule with the fake clock (DST dates, midnight, 16h+, < 1 min).
-- [ ] Integration tests: parallel clock-ins (exactly one wins), replay, two-tab scenario, provider down → 503 and **no row written**.
+- [x] `POST /api/punches` `{ "intent": "clock-in" | "clock-out" }` + `Idempotency-Key` header. **No timestamp in the body.**
+- [x] `PunchService`: load state → trusted time → monotonic guard → write in a transaction → map unique violation → 409.
+- [x] Idempotency storage and replay; key-reuse detection.
+- [x] `GET /api/me/status` (open shift, `serverNowUtc` from the trusted clock or labeled cache, flags).
+- [x] Unit tests: every rule with the fake clock (DST dates, midnight, 16h+, < 1 min).
+- [x] Integration tests: parallel clock-ins (exactly one wins), replay, two-tab scenario, provider down → 503 and **no row written**.
 
 ### Phase 4 — Auth (`plans/04-auth.md`)
 - [ ] Cookie auth, login/logout endpoints, seeded hashed passwords, `[Authorize(Roles=...)]`.
