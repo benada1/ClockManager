@@ -170,6 +170,7 @@ public sealed class AuthQaBrowserTests(MigratedDatabaseFixture database) : IClas
             "/api/manager/employees/{id:int}/shifts", "/api/manager/shifts/{id:long}",
             "/api/Health", // static {"status":"ok"}
             "/health/time", // reads the providers, writes nothing (TimeHealthEndpointTests); not called here: it would leave the test host
+            "/api/health/time", // the same alias
             "/api/dev/time-lab", // Development only, reads the providers, writes nothing (TimeLabTests); not called here for the same reason
         };
         Assert.True(mapped.All(m => covered.Contains(m)), "a GET route is not in the side-effect test: " + string.Join(", ", mapped.Except(covered)));

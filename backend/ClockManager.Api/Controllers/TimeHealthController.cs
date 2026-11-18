@@ -11,6 +11,7 @@ namespace ClockManager.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("health/time")]
+[Route("api/health/time")] // alias: the Vite dev proxy only forwards /api
 [Produces("application/json")]
 public sealed class TimeHealthController(ITimeHealth health) : ControllerBase
 {

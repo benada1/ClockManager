@@ -11,15 +11,15 @@ using NodaTime.Text;
 namespace ClockManager.Tests.Time;
 
 /// <summary>
-/// <c>GET /health/time</c> through the real host (plans/01-trusted-clock.md §4.7, D-012), with fake providers and a
+/// <c>GET /health/time</c> and its alias <c>/api/health/time</c> through the real host (plans/01-trusted-clock.md §4.7, D-012), with fake providers and a
 /// fake monotonic timer: status codes, the exact JSON shape, nothing sensitive in it, the 10 s cache, and the punch
 /// path staying uncached.
 /// </summary>
-public sealed class TimeHealthEndpointTests
+public abstract class TimeHealthEndpointTestsBase(string url)
 {
     private const string TimeNow = "time.now";
     private const string TimeApi = "timeapi.io";
-    private const string Url = "/health/time";
+    private readonly string Url = url;
 
     private static readonly Instant T1 = InstantPattern.ExtendedIso.Parse("2026-01-12T07:00:00Z").Value; // matrix T1
 
@@ -158,7 +158,7 @@ public sealed class TimeHealthEndpointTests
 
     // ---------- Helpers ----------
 
-    private static async Task<(HttpStatusCode Status, JsonElement Json)> GetAsync(FakeProvidersApiFactory factory)
+    private async Task<(HttpStatusCode Status, JsonElement Json)> GetAsync(FakeProvidersApiFactory factory)
     {
         using var client = factory.CreateClient();
         using var response = await client.GetAsync(Url);
@@ -181,3 +181,9 @@ public sealed class TimeHealthEndpointTests
             p.EnumerateObject().Select(x => x.Name)));
     }
 }
+
+/// <summary>The original route.</summary>
+public sealed class TimeHealthEndpointTests() : TimeHealthEndpointTestsBase("/health/time");
+
+/// <summary>The alias under /api (the Vite dev proxy only forwards /api): same behaviour, same tests.</summary>
+public sealed class TimeHealthApiAliasEndpointTests() : TimeHealthEndpointTestsBase("/api/health/time");
