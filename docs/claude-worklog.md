@@ -214,3 +214,9 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
   after a lost answer could send the opposite punch, and an untouched correction form could save a silent seconds change. The docs had stale plans,
   a stale CLAUDE.md and missing edge-case rows.
 - **Fix:** each as its own commit (see the corrections table) with its test turned back on. Known limits that need a real browser are in DECISIONS.
+
+## 2026-11-18 — Phase 8 finished: History, whole stack, final review
+
+- **Asked:** finish Phase 8 (History numbers, whole-stack run, final checks).
+- **What went wrong in Claude's work:** the login rate-limit test used a 1 s window shorter than four password hashes, so it failed on every solo run (the full suite hid it). A correction body accepted a repeated field, the last one winning, although login and punches already refused that. The problems list could crash on one row. CLAUDE.md had a duplicated stack line.
+- **Fix:** each its own commit. 64 History QA tests found no bug. Other review findings are low and listed in DECISIONS (known limits).

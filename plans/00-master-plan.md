@@ -1,6 +1,6 @@
 # 00 — Master plan: ClockManager
 
-**Status:** Phases 0-7 done 2026-11-18 · Phase 8 (wide QA) in progress (plans/08-qa.md) · Phase 9 next
+**Status:** Phases 0-8 done 2026-11-18 · Phase 9 next
 **Owner:** ben + Claude Code
 **Scope:** The whole assignment. Each phase below gets its own detailed `plans/NN-<feature>.md`
 before any code is written for it.
@@ -207,8 +207,8 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 - [x] Tests: correction audit is kept, overlap is rejected, concurrency conflict → 409.
 
 ### Phase 8 — QA pass (`qa` agent)
-- [ ] The qa agent reviews each area against section 4 and writes failing tests and repro steps for anything missing.
-- [ ] Fix the findings (backend/frontend agents), each with a test that fails before the fix.
+- [x] The qa agent reviews each area against section 4 and writes failing tests and repro steps for anything missing.
+- [x] Fix the findings (backend/frontend agents), each with a test that fails before the fix.
 - [ ] Optional: Playwright e2e smoke (login → clock in → clock out → history).
 
 ### Phase 9 — Deliverables polish
