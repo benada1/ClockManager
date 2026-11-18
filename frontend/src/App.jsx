@@ -6,6 +6,9 @@ import Button from './components/Button.jsx'
 import Loading from './components/Loading.jsx'
 import History from './pages/History.jsx'
 import Login from './pages/Login.jsx'
+import Manager from './pages/Manager.jsx'
+import ManagerEmployee from './pages/ManagerEmployee.jsx'
+import ManagerShift from './pages/ManagerShift.jsx'
 import Punch from './pages/Punch.jsx'
 import Signup from './pages/Signup.jsx'
 import TimeLab from './pages/TimeLab.jsx'
@@ -16,6 +19,20 @@ const LEGACY_ROUTES = [
   { path: '/', label: 'Clock' },
   { path: '/time-lab', label: 'Time lab' },
 ]
+
+// #/manager, #/manager/employee/<id>, #/manager/shift/<id>. Keyed by id so a new id starts fresh.
+function managerPage(path) {
+  if (path === '/manager') return <Manager />
+  const m = /^\/manager\/(employee|shift)\/([^/]+)$/.exec(path)
+  if (!m) return null
+  let id
+  try {
+    id = decodeURIComponent(m[2])
+  } catch {
+    return null
+  }
+  return m[1] === 'employee' ? <ManagerEmployee key={id} employeeId={id} /> : <ManagerShift key={id} shiftId={id} />
+}
 
 function NotFound() {
   return (
@@ -62,7 +79,7 @@ function App() {
   const firstRender = useRef(true)
 
   const guest = path in GUEST_PAGES
-  const signedInPage = path === '/' || path === '/history'
+  const signedInPage = path === '/' || path === '/history' || path === '/manager' || path.startsWith('/manager/')
   const redirectTo = phase === 'in' && guest ? '/' : phase === 'out' && signedInPage ? '/login' : null
 
   useEffect(() => {
@@ -104,7 +121,7 @@ function App() {
     content = <Page />
   } else if (path === '/') content = <Punch />
   else if (path === '/history') content = <History />
-  else content = <NotFound />
+  else content = managerPage(path) ?? <NotFound />
 
   return (
     <div ref={mainRef}>

@@ -5,6 +5,10 @@ import { neighbourWeek } from './weeks.js'
 /** What the page says when a load failed. The week on screen is kept. */
 export function describeLoadFailure(err) {
   if (err instanceof NetworkError) return { kind: 'offline', title: 'You are offline or the server is down.', text: 'What you see may be out of date.' }
+  if (err instanceof ApiError && err.status === 403 && err.code !== 'employee.inactive') {
+    return { kind: 'forbidden', title: 'You need a manager account for this page.', text: 'Log in with a manager account to see it.' }
+  }
+  if (err instanceof ApiError && err.status === 404) return { kind: 'notfound', title: 'We could not find this.', text: 'Go back and choose again.' }
   if (err instanceof ApiError && err.status === 400) {
     const text = Object.values(fieldErrors(err)).join(' ')
     return { kind: 'invalid', title: 'We could not show that week.', text: text || 'Try another week.' }

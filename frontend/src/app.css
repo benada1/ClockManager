@@ -36,10 +36,16 @@
   .ui, .ui * {
     box-sizing: border-box;
   }
-  .ui h1, .ui h2, .ui p {
+  .ui h1, .ui h2, .ui h3, .ui p, .ui dl, .ui dd {
     margin: 0;
   }
-  .ui button, .ui input {
+  .ui fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .ui button, .ui input, .ui textarea {
     font: inherit;
   }
   .ui :focus-visible {

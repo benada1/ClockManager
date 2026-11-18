@@ -1,26 +1,21 @@
 import Card from '../../components/Card.jsx'
+import Pill from '../../components/Pill.jsx'
 import { dayNoteTexts, formatTotal, shiftBadges, shiftDurationText, shiftTimesText } from './labels.js'
 import { formatDayHeading } from './weeks.js'
 
-const PILL_TONES = {
-  info: 'border-line-strong bg-canvas text-ink',
-  warning: 'border-warn-line bg-warn-soft text-warn',
-}
-
-function Pill({ tone = 'info', children }) {
-  return <li className={`rounded-ui border px-2 py-0.5 text-sm ${PILL_TONES[tone]}`}>{children}</li>
-}
-
-function ShiftRow({ shift }) {
-  const badges = shiftBadges(shift)
+function ShiftRow({ shift, manager, action }) {
+  const badges = shiftBadges(shift, { manager })
   return (
     <li className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-base font-medium">{shiftTimesText(shift)}</p>
-        <p className={shift.open ? 'text-sm text-muted' : 'text-base font-semibold'}>
-          <span className="sr-only">Duration: </span>
-          {shiftDurationText(shift)}
-        </p>
+        <div className="flex items-center gap-4">
+          <p className={shift.open ? 'text-sm text-muted' : 'text-base font-semibold'}>
+            <span className="sr-only">Duration: </span>
+            {shiftDurationText(shift, { manager })}
+          </p>
+          {action}
+        </div>
       </div>
       {badges.length > 0 && (
         <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
@@ -35,8 +30,8 @@ function ShiftRow({ shift }) {
   )
 }
 
-/** One day with shifts: weekday and date, the day total, notes, the shifts. */
-export default function DayCard({ day }) {
+/** One day with shifts: weekday and date, the day total, notes, the shifts. `renderAction(shift)` adds a control per shift. */
+export default function DayCard({ day, manager = false, renderAction }) {
   const notes = dayNoteTexts(day)
   const counted = day.shifts.some((s) => !s.open)
   return (
@@ -57,7 +52,7 @@ export default function DayCard({ day }) {
         )}
         <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
           {day.shifts.map((s) => (
-            <ShiftRow key={s.shiftId} shift={s} />
+            <ShiftRow key={s.shiftId} shift={s} manager={manager} action={renderAction?.(s)} />
           ))}
         </ul>
       </Card>

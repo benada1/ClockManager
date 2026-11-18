@@ -508,6 +508,20 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** An open shift is listed (`open: true`, no duration) and never counted in totals; it gets `forgotten_clock_out` only when a trusted time exists (same rule as D-036), otherwise no flag and still 200. A day gets the note `dst_change` when its length from the time zone rules is not 24 hours; no dates are hard-coded. Durations are from the UTC instants.
 - **Trade-offs:** An open shift's hours are missing from the week total until it is closed.
 
+### D-067 — The manager types a Zurich wall time; the UI works out the offset without a clock
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Options:** (a) send a plain local time and let the server guess · (b) the user types the offset · (c) a pure resolver that tries +02:00 and +01:00 and keeps those that map back to the same Zurich wall time.
+- **Decision:** (c). One match is used. Two matches (the repeated October hour) means the manager must pick "first time (summer)" or "second time (winter)". No match (the skipped March hour) is an inline error. The server checks the offset again.
+- **Why:** It never guesses and never reads the browser clock, and it is unit tested.
+
+### D-068 — The correction dialog closes only on success; a stale shift reloads in place
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Decision:** No optimistic update (same rule as D-059). On `correction.stale` the dialog reloads the shift, keeps what was typed and explains why. Rule refusals appear next to the time field; a 503 shows the trusted-time banner with Try again. It uses the native `<dialog>` (focus trap, Escape, inert page) with no extra library.
+
+### D-069 — Manager pages reuse the History week view; problems come first
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend / UX
+- **Decision:** The employee's week reuses `WeekView` and `DayCard` with a Correct button per shift. On the manager home, Problems sits above Employees because those rows need action. The Manager link shows only for managers; the server enforces access.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -622,6 +636,8 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Shift across New Year or Sunday night to Monday | Stays on the Zurich date and week of its clock-in; `endsNextDay` is true | `A_year_boundary_week_*`, `A_sunday_night_shift_*` |
 | Open shift in the range | Listed, not counted; forgotten flag only with a trusted time | `An_open_shift_is_listed_*`, `An_old_open_shift_*` |
 | `from` or `to` missing, empty, wrong format, 32 days | 400 `request.invalid` with a fixed message; 31 days is accepted | `Bad_dates_are_a_400_*` |
+| Correction typed in the skipped March hour (02:00–02:59) | Refused in the form ("this time doesn't exist in Zurich"); the server refuses it too | `manager.test.js` |
+| Correction typed in the repeated October hour | The manager must choose the first (UTC+2) or second (UTC+1) occurrence | `manager.test.js` |
 
 ## Not done (out of scope)
 

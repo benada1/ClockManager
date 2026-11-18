@@ -32,19 +32,23 @@ const FLAG_TEXT = {
   forgotten_clock_out: 'Open for a very long time: you may have forgotten to clock out',
 }
 
-/** Small labels for one shift: [{ key, tone, text }]. Always words, never color alone. */
-export function shiftBadges(shift) {
+const MANAGER_FLAG_TEXT = { ...FLAG_TEXT, forgotten_clock_out: 'Forgot to clock out' }
+
+/** Small labels for one shift: [{ key, tone, text }]. Always words, never color alone. `manager` = the manager's view. */
+export function shiftBadges(shift, { manager = false } = {}) {
+  const texts = manager ? MANAGER_FLAG_TEXT : FLAG_TEXT
   const badges = []
   if (shift.open) badges.push({ key: 'open', tone: 'info', text: 'Still open' })
   if (shift.endsNextDay) badges.push({ key: 'next', tone: 'info', text: 'Ends next day' })
+  if (shift.corrected) badges.push({ key: 'corrected', tone: 'info', text: manager ? 'Corrected' : 'Corrected by a manager' })
   for (const flag of shift.flags ?? []) {
-    if (FLAG_TEXT[flag]) badges.push({ key: flag, tone: 'warning', text: FLAG_TEXT[flag] })
+    if (texts[flag]) badges.push({ key: flag, tone: 'warning', text: texts[flag] })
   }
   return badges
 }
 
 /** "9 h 09 min", or the soft explanation for an open shift. */
-export function shiftDurationText(shift) {
-  if (shift.open) return 'Not counted until you clock out'
+export function shiftDurationText(shift, { manager = false } = {}) {
+  if (shift.open) return manager ? 'Not counted while open' : 'Not counted until you clock out'
   return formatDuration(shift.durationSeconds) ?? ''
 }

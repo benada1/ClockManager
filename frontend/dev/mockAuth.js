@@ -10,9 +10,13 @@
 //                                       expired (401 on punch), offlinepunch (connection drops on punch)
 // History (GET /api/me/shifts, signed in): history (normal week, overnight, long, open, DST day; older weeks too),
 //                                       historyempty (no shifts at all), historyerror (500 on the first Previous/Next click, retry works)
+// Manager (plan 07, see dev/mockManager.js): manager, managerstale, managerfuture, manageroverlap, managerrunning,
+//                                       managerdown, notmanager. Logging in as "manager" also gives the Manager role.
 // Other:  badlogin (login 401), blocked (login/signup 429), inactive (403), offline (nothing answers)
 //
 // Fixture times are fixed strings. The mock never reads a clock.
+
+import { MANAGER_SCENARIOS, createManagerState, managerRoute } from './mockManager.js'
 
 const IN = { utc: '2026-11-18T07:03:11.000Z', zurich: '2026-11-18T08:03:11.000+01:00' }
 const OUT = { utc: '2026-11-18T16:12:40.000Z', zurich: '2026-11-18T17:12:40.000+01:00' }
@@ -57,14 +61,15 @@ const SIGNED_IN = new Set([
   ...Object.keys(START),
   'conflict', 'unavailable', 'disagree', 'flaky', 'badrequest', 'keyreused', 'toomany', 'servererror',
   'expired', 'offlinepunch', 'inactive', 'history', 'historyempty', 'historyerror',
+  ...MANAGER_SCENARIOS, 'notmanager',
 ])
 
-const state = { scenario: null, open: null, last: null, flags: [], seen: new Map(), flakyUsed: false, user: null, shiftCalls: 0 }
+const state = { scenario: null, open: null, last: null, flags: [], seen: new Map(), flakyUsed: false, user: null, shiftCalls: 0, manager: createManagerState() }
 
 function reset(name) {
   if (state.scenario === name) return
   const [open, last, flags] = (START[name] ?? START.fresh)()
-  Object.assign(state, { scenario: name, open, last, flags, seen: new Map(), flakyUsed: false, shiftCalls: 0 })
+  Object.assign(state, { scenario: name, open, last, flags, seen: new Map(), flakyUsed: false, shiftCalls: 0, manager: { ...createManagerState(), isManagerLogin: state.manager?.isManagerLogin } })
 }
 
 // ---- History fixtures (GET /api/me/shifts, plan 06 section 3). Fixed strings, no clock. ----
@@ -85,7 +90,7 @@ const HISTORY = [
   hs(4, '2026-11-10', '2026-11-10T08:00:00+01:00', '2026-11-10T17:00:00+01:00', 32400),
   hs(5, '2026-11-16', '2026-11-16T08:00:00+01:00', '2026-11-16T12:00:00+01:00', 14400),
   hs(6, '2026-11-16', '2026-11-16T13:00:00+01:00', '2026-11-16T17:30:00+01:00', 16200),
-  hs(7, '2026-11-17', '2026-11-17T08:03:11+01:00', '2026-11-17T17:12:20+01:00', 32949),
+  hs(7, '2026-11-17', '2026-11-17T08:03:11+01:00', '2026-11-17T17:12:20+01:00', 32949, { corrected: true }),
   hs(8, '2026-11-18', '2026-11-18T22:00:00+01:00', '2026-11-19T06:00:00+01:00', 28800), // overnight
   hs(9, '2026-11-20', '2026-11-20T07:00:00+01:00', '2026-11-20T23:30:00+01:00', 59400, { flags: ['long_shift'] }),
   hs(10, '2026-11-22', '2026-11-22T08:03:11+01:00', null, null), // still open
@@ -105,7 +110,12 @@ function shiftsAnswer(url, scenario) {
   // Counts week changes only: React StrictMode sends the first load twice in dev.
   if (q.has('from')) state.shiftCalls += 1
   if (scenario === 'historyerror' && q.has('from') && state.shiftCalls === 1) return problem(500, 'An unexpected error occurred.', 'server.error')
-  const rows = scenario === 'historyempty' ? [] : HISTORY
+  return weekAnswer(url, scenario === 'historyempty' ? [] : HISTORY)
+}
+
+/** GET .../shifts body for these rows: the requested range, or the week of the latest shift. */
+function weekAnswer(url, rows) {
+  const q = new URL(url, 'http://mock').searchParams
   let from = q.get('from')
   let to = q.get('to')
   if (from === null && to === null) {
@@ -171,7 +181,9 @@ function validateSignup(b) {
   return errors
 }
 
-const userOf = () => state.user ?? { username: 'alice', displayName: 'Alice Example', role: 'Employee' }
+const userOf = (scenario) =>
+  state.user ??
+  (MANAGER_SCENARIOS.has(scenario) ? { username: 'manager', displayName: 'Maria Manager', role: 'Manager' } : { username: 'alice', displayName: 'Alice Example', role: 'Employee' })
 
 /** Returns { status, body, headers? } or 'drop' (cut the connection), or null when not an auth/punch route. */
 async function route(req, scenario, authed) {
@@ -193,21 +205,28 @@ async function route(req, scenario, authed) {
     if (scenario === 'badlogin' || !body.username || !body.password) {
       return problem(401, 'Wrong username or password.', 'auth.invalid_credentials')
     }
-    state.user = { username: body.username, displayName: body.username, role: 'Employee' }
+    const isManager = body.username.toLowerCase() === 'manager'
+    state.user = { username: body.username, displayName: isManager ? 'Maria Manager' : body.username, role: isManager ? 'Manager' : 'Employee' }
+    state.manager.isManagerLogin = isManager
     return { status: 200, body: state.user, headers: { 'Set-Cookie': 'mock_session=1; Path=/; HttpOnly' } }
   }
 
+  const managerAnswer = await managerRoute(req, { scenario, authed, state: state.manager, readJson, problem, shiftsAnswer: weekAnswer })
+  if (managerAnswer) return managerAnswer
+
   if (path === '/api/auth/logout') {
+    state.user = null
+    state.manager.isManagerLogin = false
     return { status: 204, headers: { 'Set-Cookie': 'mock_session=0; Path=/; HttpOnly' } }
   }
-  if (path === '/api/auth/me') return authed ? { status: 200, body: userOf() } : unauth
+  if (path === '/api/auth/me') return authed ? { status: 200, body: userOf(scenario) } : unauth
 
   if (path === '/api/me/status') {
     if (!authed) return unauth
     if (scenario === 'inactive') return problem(403, 'Account is switched off.', 'employee.inactive')
     return {
       status: 200,
-      body: { employee: userOf(), openShift: state.open, lastClosedShift: state.last, serverNow: scenario === 'notime' ? null : SERVER_NOW, flags: state.flags },
+      body: { employee: userOf(scenario), openShift: state.open, lastClosedShift: state.last, serverNow: scenario === 'notime' ? null : SERVER_NOW, flags: state.flags },
     }
   }
 
@@ -271,7 +290,7 @@ async function route(req, scenario, authed) {
 /** Connect-style handler: returns true when it answered the request. */
 export async function handleAuthMock(req, res, { delayMs = 400 } = {}) {
   const path = req.url?.split('?')[0] ?? ''
-  if (!/^\/api\/(auth|punches|me\/status|me\/shifts)/.test(path)) return false
+  if (!/^\/api\/(auth|punches|me\/status|me\/shifts|manager\/)/.test(path)) return false
 
   const scenario = scenarioOf(req)
   reset(START[scenario] || SIGNED_IN.has(scenario) ? scenario : 'fresh')
