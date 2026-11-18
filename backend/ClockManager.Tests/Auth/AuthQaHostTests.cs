@@ -95,31 +95,19 @@ public sealed class AuthQaHostTests
     }
 
     /// <summary>
-    /// Signup and login read at most 3 short strings, yet accept a body up to the framework default (about 28 MB), which the JSON
-    /// reader buffers and parses before validation says no. The rate limit (10 per minute per address) bounds it for anonymous callers.
+    /// Signup, login, punch and correction read a few short strings, so each caps the body at 16 KB (QA-48) instead of the
+    /// framework default (30 MB), which the JSON reader would buffer and parse before validation says no. TestServer cannot enforce
+    /// Kestrel's limit, so this checks the endpoint metadata that Kestrel reads.
     /// </summary>
-    [Fact(Skip = "QA-48 open: signup and login have no request size limit (framework default ~30 MB is read and parsed before validation); expected a few KB, e.g. [RequestSizeLimit(16384)].")]
-    [Trait("Status", "KnownBug")]
-    public void QA48_signup_and_login_cap_the_request_body_at_a_few_kilobytes()
-    {
-        using var factory = Host("Development");
-
-        var limits = BodyLimits(factory, "api/auth/signup", "api/auth/login");
-
-        Assert.Equal(2, limits.Count);
-        Assert.All(limits, l => Assert.True(l is <= 65536, $"limit {l}"));
-    }
-
-    /// <summary>Today's value of the case above (30 000 000 bytes, Kestrel's default), so the skipped test has a passing twin.</summary>
     [Fact]
-    public void Today_signup_and_login_use_the_framework_default_body_limit()
+    public void QA48_body_endpoints_cap_the_request_at_16_KB()
     {
         using var factory = Host("Development");
 
-        var limits = BodyLimits(factory, "api/auth/signup", "api/auth/login");
+        var limits = BodyLimits(factory, "api/auth/signup", "api/auth/login", "api/punches", "api/manager/shifts/{id:long}/corrections");
 
-        Assert.Equal(2, limits.Count);
-        Assert.All(limits, l => Assert.Equal(30_000_000, l));
+        Assert.Equal(4, limits.Count);
+        Assert.All(limits, l => Assert.Equal(16384, l));
     }
 
     [Fact]

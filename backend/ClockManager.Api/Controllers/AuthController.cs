@@ -15,6 +15,7 @@ public sealed class AuthController(AuthService auth, AuthCookie cookie) : Contro
 {
     /// <summary>Creates an Employee account and signs it in (the cookie is set).</summary>
     [HttpPost("signup")]
+    [RequestSizeLimit(16384)] // 16 KB (QA-48)
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitingExtensions.AuthPolicy)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
@@ -31,6 +32,7 @@ public sealed class AuthController(AuthService auth, AuthCookie cookie) : Contro
 
     /// <summary>Checks the password and sets the cookie.</summary>
     [HttpPost("login")]
+    [RequestSizeLimit(16384)] // 16 KB (QA-48)
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitingExtensions.AuthPolicy)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]

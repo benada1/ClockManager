@@ -20,7 +20,7 @@ namespace ClockManager.Api.Application.Punches;
 public sealed class PunchRequestJsonConverter : JsonConverter<PunchRequest>
 {
     /// <summary>Marker the 400 factory looks for in the exception text; never sent to the client.</summary>
-    public const string DuplicateMarker = "duplicate JSON member";
+    public const string DuplicateMarker = ClockManager.Api.Common.JsonDuplicateMembers.Marker;
 
     private static readonly JsonSerializerOptions WireOptions = new(JsonSerializerDefaults.Web);
 
@@ -32,7 +32,7 @@ public sealed class PunchRequestJsonConverter : JsonConverter<PunchRequest>
 
     public override PunchRequest? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        ThrowOnDuplicateMember(reader); // by value: a copy, the real reader does not move
+        ClockManager.Api.Common.JsonDuplicateMembers.ThrowIfAny(reader); // by value: a copy, the real reader does not move
         var wire = JsonSerializer.Deserialize<Wire>(ref reader, WireOptions);
         return wire is null ? null : new PunchRequest { Intent = wire.Intent };
     }
@@ -42,30 +42,5 @@ public sealed class PunchRequestJsonConverter : JsonConverter<PunchRequest>
         writer.WriteStartObject();
         writer.WriteString("intent", value.Intent);
         writer.WriteEndObject();
-    }
-
-    private static void ThrowOnDuplicateMember(Utf8JsonReader reader)
-    {
-        if (reader.TokenType != JsonTokenType.StartObject) return; // other shapes: the normal errors apply
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
-            {
-                var name = reader.GetString()!; // unescaped, so "intent" is the same name
-                if (!seen.Add(name))
-                {
-                    // Known member: report its wire name. Unknown member: the client's own name (cleaned later).
-                    var key = string.Equals(name, "intent", StringComparison.OrdinalIgnoreCase) ? "intent" : name;
-                    throw new JsonException(DuplicateMarker, "$." + key, null, null);
-                }
-                reader.Read();
-                reader.Skip();
-            }
-        }
-        catch (JsonException ex) when (ex.Message != DuplicateMarker)
-        {
-            // Malformed JSON: stop scanning; the real read below reports it with the usual (sanitised) 400.
-        }
     }
 }

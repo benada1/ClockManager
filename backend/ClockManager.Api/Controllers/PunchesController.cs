@@ -22,6 +22,7 @@ public sealed class PunchesController(PunchService punches) : ControllerBase
     /// <param name="request"><c>{ "intent": "clock-in" | "clock-out" }</c>. Any other member is a 400.</param>
     /// <param name="idempotencyKey">Required: a new UUID per punch, the same one on a retry.</param>
     [HttpPost]
+    [RequestSizeLimit(16384)] // 16 KB: the body is one short intent (QA-48)
     [EnableRateLimiting(RateLimitingExtensions.PunchPolicy)]
     [Consumes("application/json")]
     [ProducesResponseType<ShiftView>(StatusCodes.Status201Created, "application/json")]

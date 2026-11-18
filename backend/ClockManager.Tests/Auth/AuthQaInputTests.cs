@@ -259,8 +259,7 @@ public sealed class AuthQaInputTests(MigratedDatabaseFixture database) : IClassF
         Assert.Equal(display, signup.Json.GetProperty("displayName").GetString());
     }
 
-    [SqlServerFact(Skip = "QA-44 open: no 'X-Content-Type-Options: nosniff' on any API response, while user-controlled display names come back with raw '<' and '&' inside JSON (defence in depth).")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA44_JSON_responses_carry_nosniff_because_they_echo_user_text()
     {
         await using var factory = NewHost(database);
@@ -386,8 +385,7 @@ public sealed class AuthQaInputTests(MigratedDatabaseFixture database) : IClassF
     /// reader throw DecoderFallbackException / ArgumentOutOfRangeException: an unhandled 500 and an Error log line per request,
     /// on every JSON endpoint (signup and login need no sign-in). No data is touched and the body leaks nothing.
     /// </summary>
-    [SqlServerFact(Skip = "QA-42 open: Content-Type 'application/json; charset=utf-16' (or an empty charset=) makes every JSON endpoint answer 500 server.error and log an Error; expected 400/415.")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA42_a_utf16_or_empty_charset_is_a_4xx_not_a_500_on_every_JSON_endpoint()
     {
         await using var factory = NewHost(database);
@@ -406,7 +404,7 @@ public sealed class AuthQaInputTests(MigratedDatabaseFixture database) : IClassF
                 (PunchApiFactoryHeaders.User, person.Username), ("Idempotency-Key", Guid.NewGuid().ToString()));
             foreach (var (label, reply) in new[] { ("signup", signup), ("login", loginReply), ("punch", punch) })
             {
-                if ((int)reply.Status >= 500) failures.Add($"{label} charset='{charset}': {(int)reply.Status}");
+                if (reply.Status != HttpStatusCode.UnsupportedMediaType) failures.Add($"{label} charset='{charset}': {(int)reply.Status}");
             }
         }
         Assert.True(failures.Count == 0, string.Join("; ", failures));
@@ -471,8 +469,7 @@ public sealed class AuthQaInputTests(MigratedDatabaseFixture database) : IClassF
     /// values. Signup and login read the LAST one silently. Not exploitable today (nothing in these bodies is a privilege),
     /// but the rule "the first and the last reader must agree" is the same.
     /// </summary>
-    [SqlServerFact(Skip = "QA-41 open: signup and login accept duplicate JSON members (the last one wins), while the punch body rejects them with 400 (D-041).")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA41_duplicate_members_in_signup_and_login_are_400_like_in_the_punch_body()
     {
         await using var factory = NewHost(database);
@@ -486,20 +483,9 @@ public sealed class AuthQaInputTests(MigratedDatabaseFixture database) : IClassF
 
         Assert.Equal(HttpStatusCode.BadRequest, signup.Status);
         Assert.Equal(HttpStatusCode.BadRequest, login.Status);
-    }
-
-    /// <summary>Documents today's behaviour of the same case, so the skipped test above has a passing twin.</summary>
-    [SqlServerFact]
-    public async Task Today_the_last_duplicate_member_wins_in_login()
-    {
-        await using var factory = NewHost(database);
-        using var client = factory.CreateClient();
-        var existing = await AddEmployeeAsync(database);
-
-        var login = await PostRawAsync(client, "/api/auth/login",
-            $$"""{"username":"nobody","username":"{{existing.Username}}","password":"{{Password}}"}""", "application/json");
-
-        Assert.Equal(HttpStatusCode.OK, login.Status); // "nobody" was ignored, the last username was used
+        Assert.True(signup.HasErrorFor("username"), signup.Text);
+        Assert.True(login.HasErrorFor("username"), login.Text);
+        Assert.Empty(login.SetCookies);
     }
 
     [SqlServerFact]
@@ -513,7 +499,7 @@ public sealed class AuthQaInputTests(MigratedDatabaseFixture database) : IClassF
         var signup = await PostRawAsync(client, "/api/auth/signup",
             $$"""
             {"username":"{{name}}","displayName":"Mallory","password":"{{Password}}",
-             "role":"Manager","Role":1,"isActive":false,"IsActive":false,"id":1,"employeeId":1,"passwordHash":"{{planted}}",
+             "role":"Manager","isActive":false,"id":1,"employeeId":1,"passwordHash":"{{planted}}",
              "rowVersion":"AAAA","isAdmin":true}
             """, "application/json");
 
@@ -631,8 +617,7 @@ public sealed class AuthQaInputTests(MigratedDatabaseFixture database) : IClassF
     /// The same with text that is not base64 (a natural way to lock an account: '!' or 'LOCKED-by-admin' in the hash column).
     /// Identity's hasher throws FormatException, nothing catches it: login answers 500 and logs an Error.
     /// </summary>
-    [SqlServerFact(Skip = "QA-43 open: a PasswordHash that is not valid base64 (e.g. '!') makes POST /api/auth/login answer 500 server.error; expected the normal 401.")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA43_a_stored_hash_that_is_not_base64_is_a_normal_401_not_a_500()
     {
         await RunCorruptHashesAsync(["!", "LOCKED-by-admin", "not base64 at all"]);

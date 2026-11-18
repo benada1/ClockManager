@@ -54,6 +54,7 @@ public sealed class ManagerController(ManagerService manager, ShiftCorrectionSer
 
     /// <summary>Corrects one punch. The time is typed by the manager with its Zurich offset; the audit time is trusted.</summary>
     [HttpPost("shifts/{id:long}/corrections")]
+    [RequestSizeLimit(16384)] // 16 KB: a correction is a few short fields (QA-48)
     [Consumes("application/json")]
     [ProducesResponseType<ShiftDetailView>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]

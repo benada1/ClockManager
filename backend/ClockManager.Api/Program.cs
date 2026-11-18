@@ -11,7 +11,13 @@ using ClockManager.Api.Infrastructure.Time;
 var builder = WebApplication.CreateBuilder(args);
 
 // [DevelopmentOnly] controllers (the Time lab) are not even discovered outside Development: 404, not in Swagger.
-builder.Services.AddControllers().ExcludeDevelopmentOnlyControllers(builder.Environment);
+builder.Services.AddControllers().ExcludeDevelopmentOnlyControllers(builder.Environment)
+    .AddJsonOptions(o =>
+    {
+        // Signup and login refuse a member that appears twice, like the punch body (QA-41, D-041).
+        o.JsonSerializerOptions.Converters.Add(new DuplicateFreeJsonConverter<ClockManager.Api.Application.Auth.SignupRequest>());
+        o.JsonSerializerOptions.Converters.Add(new DuplicateFreeJsonConverter<ClockManager.Api.Application.Auth.LoginRequest>());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -44,7 +50,9 @@ builder.Services.AddOptions<ShiftRulesOptions>()
 
 var app = builder.Build();
 
+app.UseMiddleware<NoSniffMiddleware>(); // before the error handler: every response, errors included
 app.UseAppProblemDetails();
+app.UseMiddleware<JsonCharsetMiddleware>(); // inside it, so its 415 is a normal ProblemDetails
 
 if (app.Environment.IsDevelopment())
 {

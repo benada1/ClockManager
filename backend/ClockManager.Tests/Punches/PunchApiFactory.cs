@@ -127,7 +127,11 @@ internal sealed class PunchApiFactory(
 
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             {
-                if (IsEnabled(logLevel)) sink.Enqueue(new LogEntry(logLevel, category, formatter(state, exception), exception));
+                if (!IsEnabled(logLevel)) return;
+                var message = formatter(state, exception);
+                // TestServer has no body-size feature, so [RequestSizeLimit] warns on every request here (Kestrel does not): not a finding.
+                if (message.Contains("request body size limit could not be applied", StringComparison.Ordinal)) return;
+                sink.Enqueue(new LogEntry(logLevel, category, message, exception));
             }
         }
     }

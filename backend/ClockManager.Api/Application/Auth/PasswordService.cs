@@ -25,7 +25,17 @@ public sealed class PasswordService
     public bool Verify(Employee? employee, string password)
     {
         var hash = employee?.PasswordHash;
-        var result = _hasher.VerifyHashedPassword(employee ?? _dummyUser, hash ?? _dummyHash, password);
+        PasswordVerificationResult result;
+        try
+        {
+            result = _hasher.VerifyHashedPassword(employee ?? _dummyUser, hash ?? _dummyHash, password);
+        }
+        catch (FormatException)
+        {
+            // A stored hash that is not base64 (e.g. "!" used to lock an account) is a failed login, not a 500 (QA-43).
+            _hasher.VerifyHashedPassword(_dummyUser, _dummyHash, password); // same work as a normal failure
+            return false;
+        }
         return hash is not null && result != PasswordVerificationResult.Failed;
     }
 }
