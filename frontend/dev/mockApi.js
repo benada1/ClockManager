@@ -1,3 +1,5 @@
+import { handleAuthMock } from './mockAuth.js'
+
 // DEV-ONLY mock of the backend, used by `npm run dev:mock` (vite --mode mock). It is a Vite
 // dev-server plugin, so it never ends up in the production bundle.
 //
@@ -5,6 +7,8 @@
 //   http://localhost:5173/?mock=disagree#/time-lab
 // Scenarios: accepted (default), single, lowprecision, dst, disagree, down, invalid,
 //            notdev (404), servererror (500), unreachable (backend not running).
+//
+// Auth, status and punch endpoints: see dev/mockAuth.js for their scenarios.
 //
 // Fixture times are fixed strings. The mock never reads a clock.
 
@@ -214,7 +218,8 @@ export function mockApi({ delayMs = 800 } = {}) {
   return {
     name: 'clockmanager-mock-api',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
+      server.middlewares.use(async (req, res, next) => {
+        if (await handleAuthMock(req, res)) return
         const path = req.url?.split('?')[0]
         if (path === '/api/health') {
           res.writeHead(200, { 'Content-Type': 'application/json' })

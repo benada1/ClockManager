@@ -1,48 +1,43 @@
 import { useEffect, useRef } from 'react'
-import { href, useHashRoute } from './router.js'
-import Home from './pages/Home.jsx'
+import { useAuth } from './auth/authContext.js'
+import AppShell from './components/AppShell.jsx'
+import Banner from './components/Banner.jsx'
+import Button from './components/Button.jsx'
+import Loading from './components/Loading.jsx'
+import Login from './pages/Login.jsx'
+import Punch from './pages/Punch.jsx'
+import Signup from './pages/Signup.jsx'
 import TimeLab from './pages/TimeLab.jsx'
+import { href, navigate, useHashRoute } from './router.js'
 
-const ROUTES = [
-  { path: '/', label: 'Home', component: Home },
-  { path: '/time-lab', label: 'Time lab', component: TimeLab },
+const GUEST_PAGES = { '/login': Login, '/signup': Signup }
+const LEGACY_ROUTES = [
+  { path: '/', label: 'Clock' },
+  { path: '/time-lab', label: 'Time lab' },
 ]
 
 function NotFound() {
   return (
-    <>
-      <h1 tabIndex={-1}>Page not found</h1>
-      <p>
-        <a href={href('/')}>Go to the home page</a>
-      </p>
-    </>
+    <div className="flex flex-col gap-3">
+      <h1 tabIndex={-1} className="text-xl font-semibold">
+        Page not found
+      </h1>
+      <a className="font-medium text-accent underline" href={href('/')}>
+        Go to the start page
+      </a>
+    </div>
   )
 }
 
-function App() {
-  const path = useHashRoute()
-  const route = ROUTES.find((r) => r.path === path)
-  const Page = route?.component ?? NotFound
-  const mainRef = useRef(null)
-  const firstRender = useRef(true)
-
-  // After client-side navigation, move focus to the new page's heading so keyboard
-  // and screen-reader users land at the start of the new content.
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false
-      return
-    }
-    mainRef.current?.querySelector('h1')?.focus()
-  }, [path])
-
+// Time lab keeps its own plain-CSS shell (developer tool, no login needed).
+function TimeLabShell({ path }) {
   return (
     <>
       <header className="app-header">
         <span className="app-name">Clock Manager</span>
         <nav aria-label="Main">
           <ul>
-            {ROUTES.map((r) => (
+            {LEGACY_ROUTES.map((r) => (
               <li key={r.path}>
                 <a href={href(r.path)} aria-current={r.path === path ? 'page' : undefined}>
                   {r.label}
@@ -52,10 +47,66 @@ function App() {
           </ul>
         </nav>
       </header>
-      <main ref={mainRef} className="page">
-        <Page />
+      <main className="page">
+        <TimeLab />
       </main>
     </>
+  )
+}
+
+function App() {
+  const path = useHashRoute()
+  const { phase, retry } = useAuth()
+  const mainRef = useRef(null)
+  const firstRender = useRef(true)
+
+  const guest = path in GUEST_PAGES
+  const redirectTo = phase === 'in' && guest ? '/' : phase === 'out' && path === '/' ? '/login' : null
+
+  useEffect(() => {
+    if (redirectTo) navigate(redirectTo)
+  }, [redirectTo])
+
+  // After navigation, move focus to the new page's heading for keyboard and screen-reader users.
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    mainRef.current?.querySelector('h1')?.focus()
+  }, [path, phase])
+
+  if (path === '/time-lab') return <TimeLabShell path={path} />
+
+  let content
+  if (phase === 'loading') content = <Loading>Loading…</Loading>
+  else if (phase === 'unreachable')
+    content = (
+      <div className="mx-auto max-w-md">
+        <Banner
+          tone="error"
+          title="You are offline or the server is down."
+          action={
+            <Button variant="secondary" onClick={retry}>
+              Try again
+            </Button>
+          }
+        >
+          We could not check whether you are logged in.
+        </Banner>
+      </div>
+    )
+  else if (redirectTo) content = null
+  else if (guest) {
+    const Page = GUEST_PAGES[path]
+    content = <Page />
+  } else if (path === '/') content = <Punch />
+  else content = <NotFound />
+
+  return (
+    <div ref={mainRef}>
+      <AppShell>{content}</AppShell>
+    </div>
   )
 }
 

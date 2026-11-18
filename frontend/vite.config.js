@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { mockApi } from './dev/mockApi.js'
@@ -7,7 +8,7 @@ const API_TARGET = 'http://localhost:5258'
 export default defineConfig(({ command, mode }) => ({
   // `npm run dev:mock` serves canned /api answers so the UI can be exercised without the backend.
   // Dev-server only: plugins with configureServer never run during `vite build`.
-  plugins: [react(), command === 'serve' && mode === 'mock' && mockApi()],
+  plugins: [react(), tailwindcss(), command === 'serve' && mode === 'mock' && mockApi()],
   server: {
     port: 5173,
     proxy: {

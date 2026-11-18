@@ -16,3 +16,6 @@ export function useHashRoute() {
 }
 
 export const href = (path) => `#${path}`
+
+/** Go to a page without adding a history entry (used for redirects). */
+export const navigate = (path) => window.location.replace(`#${path}`)

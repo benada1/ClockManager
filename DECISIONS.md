@@ -388,6 +388,28 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** Punches of ONE employee queue behind each other for the length of one short transaction (lock, one read, two writes, commit; no HTTP call inside); other employees are never blocked. A stuck transaction would block that employee's punches until the request is cancelled (no `LOCK_TIMEOUT` set: the request token cancels the wait). Any future writer of an employee's shifts (manager corrections, Phase 7) must take the same lock first, in the same order. The explicit transaction still needs `CreateExecutionStrategy` if retry-on-failure is ever enabled (unchanged).
 - **Refs:** plans/03-punch-api.md · `Application/Punches/PunchService.cs` · `PunchQaConcurrencyTests.QA23_a_storm_never_leaves_overlapping_or_touching_shifts` (stable 10 runs; fails without the fix), `A_punch_waits_for_the_employee_lock_*` (deterministic: a second connection holds the lock)
 
+### D-045 — Tailwind CSS v4 for the new screens
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Options:** (a) Tailwind v4 with the Vite plugin · (b) more plain CSS · (c) a component library.
+- **Decision:** (a). Colors, font and radius live once in an `@theme` block (`src/app.css`); repeated styling lives in `Button`, `Field`, `Banner`, `Card`.
+- **Why:** The user asked for Tailwind; a small shared set of components keeps the screens consistent.
+- **Trade-offs:** Two styling systems for now. Tailwind's reset is not imported, so the old Time lab page keeps its look.
+
+### D-046 — Hand-written router and auth context, no new libraries
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Decision:** `AuthProvider` asks `GET /api/auth/me` on load. The login is an HTTP-only cookie, so JavaScript never touches a token. Any 401 `auth.unauthenticated` goes through one hook in the API client and sends the user to login.
+- **Trade-offs:** An expired session is noticed only on the next request or refresh.
+
+### D-047 — Punch screen: key per attempt, retry with the same key, no clock
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend / UX
+- **Decision:** A new `Idempotency-Key` per attempt, kept only after errors where the result is unknown (503, 429, network, 5xx) so "Try again" can't punch twice. No live clock or timer anywhere (user's choice): a time is shown only after a punch or from a saved shift, always from the server's string, formatted in Europe/Zurich and labeled "Zurich time". The offset is added on DST days. A forgotten shift is a notice, never closed by the UI.
+- **Trade-offs:** No elapsed time while clocked in. `serverNow` from the status endpoint is not used.
+
+### D-048 — Stateful mock mode for the UI
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
+- **Decision:** `dev/mockAuth.js` (dev server only) fakes login, signup, status and punches. Scenarios come from `?mock=` in the page URL (e.g. `open`, `forgotten`, `unavailable`, `conflict`, `expired`, `offline`).
+- **Why:** Every screen state can be checked without the backend, and the frontend could be built in parallel with Phase 4.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -495,7 +517,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 
 ## Not done (out of scope)
 
-_None yet._
+- **No frontend component tests.** The project has no frontend test tooling; the screens are checked through the mock scenarios and a manual checklist (plan 05 §8).
 
 ## Corrections to Claude's output
 

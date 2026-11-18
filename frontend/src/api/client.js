@@ -7,6 +7,12 @@ const BASE_URL = '/api'
 // so a stopped API is reported as a network problem rather than a generic 502.
 export const PROXY_UNREACHABLE_HEADER = 'x-dev-proxy-error'
 
+// Called when the session is gone (401 auth.unauthenticated) so the app can go to the login page.
+let sessionEndedHandler = () => {}
+export const onSessionEnded = (handler) => {
+  sessionEndedHandler = handler
+}
+
 /** The server answered with an error status. Fields come from RFC 7807 ProblemDetails when present. */
 export class ApiError extends Error {
   constructor({ status, code = null, title = null, detail = null, traceId = null, errors = null, problem = null }) {
@@ -68,6 +74,7 @@ export async function apiRequest(path, { method = 'GET', body, signal, headers }
     response = await fetch(BASE_URL + path, {
       method,
       signal,
+      credentials: 'same-origin', // the login is an HttpOnly cookie; no token in JavaScript
       headers: {
         Accept: 'application/json, application/problem+json',
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
@@ -85,7 +92,11 @@ export async function apiRequest(path, { method = 'GET', body, signal, headers }
   }
 
   const payload = await readBody(response)
-  if (!response.ok) throw toApiError(response, payload)
+  if (!response.ok) {
+    const error = toApiError(response, payload)
+    if (error.status === 401 && error.code === 'auth.unauthenticated') sessionEndedHandler()
+    throw error
+  }
   if (payload !== null && typeof payload !== 'object') {
     throw new ApiError({ status: response.status, code: 'client.unexpected_body', title: 'Expected a JSON response' })
   }

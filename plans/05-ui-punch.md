@@ -1,6 +1,6 @@
 # 05 — Frontend: sign up, log in and punch
 
-**Status:** Draft 2026-11-18, waiting for approval · **Lead agent:** frontend · **Runs in parallel with:** plan 04 (backend auth)
+**Status:** Approved 2026-11-18 · Steps 1–2 done (screens built against the mock, D-045..D-048) · Step 3 (connect to the real login) next · **Lead agent:** frontend
 **Refs:** master plan §4 "UI misinformation risks" · CLAUDE.md §5 (frontend) and rule 1 · API contract: plan 04 §3, plus the Phase 3 endpoints
 
 ## 1. Goal
