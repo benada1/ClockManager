@@ -50,7 +50,8 @@ public static class AuthServiceCollectionExtensions
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.AddSingleton<IConfigureOptions<JwtBearerOptions>, ConfigureJwtBearer>();
-        services.AddAuthorization();
+        services.AddScoped<IAuthorizationHandler, ManagerPolicy.Handler>();
+        services.AddAuthorization(o => o.AddPolicy(ManagerPolicy.Name, p => p.RequireAuthenticatedUser().AddRequirements(new ManagerPolicy.Requirement())));
 
         services.Configure<SwaggerGenOptions>(o =>
         {

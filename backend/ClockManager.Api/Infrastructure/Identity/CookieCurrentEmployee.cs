@@ -11,7 +11,11 @@ namespace ClockManager.Api.Infrastructure.Identity;
 /// </summary>
 internal sealed class CookieCurrentEmployee(IHttpContextAccessor httpContextAccessor, ClockManagerDbContext db) : ICurrentEmployee
 {
-    public async Task<CurrentEmployee?> GetAsync(CancellationToken ct)
+    private Task<CurrentEmployee?>? _loaded; // one load per request (scoped): the manager policy and the service share it
+
+    public Task<CurrentEmployee?> GetAsync(CancellationToken ct) => _loaded ??= LoadAsync(ct);
+
+    private async Task<CurrentEmployee?> LoadAsync(CancellationToken ct)
     {
         var user = httpContextAccessor.HttpContext?.User;
         if (user?.Identity?.IsAuthenticated != true) return null;

@@ -41,6 +41,30 @@ public sealed class PunchStamp
     /// <summary>The provider's sanitized response body (D-006), at most 1024 characters.</summary>
     public string RawPayload { get; private set; } = null!;
 
+    /// <summary>Provider name of a time typed by a manager (plan 07 §4).</summary>
+    public const string ManagerCorrectionProvider = "manager_correction";
+
+    /// <summary>
+    /// A manager-typed instant (plan 07): no provider round trip; offset and work date come from tzdb at that instant.
+    /// The audit row in <c>ShiftCorrections</c> holds who, when and why.
+    /// </summary>
+    public static PunchStamp FromCorrection(Instant utc, int managerId, ZurichTime zurich)
+    {
+        ArgumentNullException.ThrowIfNull(zurich);
+        return new PunchStamp
+        {
+            Utc = utc,
+            ZurichOffset = zurich.OffsetAt(utc),
+            ZurichDate = zurich.LocalDate(utc),
+            Provider = ManagerCorrectionProvider,
+            RoundTripMs = 0,
+            CrossCheckedBy = null,
+            CrossCheckDeltaMs = null,
+            LowPrecision = false,
+            RawPayload = $"corrected by manager #{managerId.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+        };
+    }
+
     /// <summary>
     /// Builds a stamp from a trusted reading. The Zurich date is derived from the instant with tzdb, and the
     /// reading's offset must match tzdb at that instant (a mismatch means a bug upstream, so it throws).

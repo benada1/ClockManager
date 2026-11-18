@@ -17,15 +17,18 @@ public static class ShiftHistoryBuilder
     }
 
     /// <param name="now">Trusted "now" for <c>forgotten_clock_out</c> only; null leaves that flag out (D-036).</param>
+    /// <param name="corrected">Ids of shifts with at least one manager correction.</param>
+    /// <param name="withRowVersion">Manager views add each shift's base64 row version.</param>
     public static ShiftHistoryView Build(
-        LocalDate from, LocalDate to, IEnumerable<Shift> shifts, Instant? now, ShiftRulesOptions rules, ZurichTime zurich)
+        LocalDate from, LocalDate to, IEnumerable<Shift> shifts, Instant? now, ShiftRulesOptions rules, ZurichTime zurich,
+        IReadOnlySet<long>? corrected = null, bool withRowVersion = false)
     {
         var days = shifts
             .GroupBy(s => s.ClockIn.ZurichDate)
             .OrderBy(g => g.Key)
             .Select(g =>
             {
-                var views = g.OrderBy(s => s.ClockIn.Utc).ThenBy(s => s.Id).Select(s => ToView(s, now, rules)).ToList();
+                var views = g.OrderBy(s => s.ClockIn.Utc).ThenBy(s => s.Id).Select(s => ToView(s, now, rules, corrected, withRowVersion)).ToList();
                 return new HistoryDayView(
                     LocalDatePattern.Iso.Format(g.Key),
                     views.Sum(v => v.DurationSeconds ?? 0),
@@ -43,7 +46,7 @@ public static class ShiftHistoryBuilder
         return length != Duration.FromHours(24);
     }
 
-    private static HistoryShiftView ToView(Shift s, Instant? now, ShiftRulesOptions rules)
+    public static HistoryShiftView ToView(Shift s, Instant? now, ShiftRulesOptions rules, IReadOnlySet<long>? corrected, bool withRowVersion)
     {
         var flags = ShiftFlags.For(s, rules).ToList();
         if (now is { } n && ShiftFlags.IsForgotten(s, n, rules)) flags.Add(ShiftFlags.ForgottenClockOut);
@@ -55,6 +58,8 @@ public static class ShiftHistoryBuilder
             s.ClockOut is null ? null : (long)(s.ClockOut.Utc - s.ClockIn.Utc).TotalSeconds,
             s.ClockOut is not null && s.ClockOut.ZurichDate > s.ClockIn.ZurichDate,
             s.ClockOut is null,
-            flags);
+            flags,
+            corrected?.Contains(s.Id) == true,
+            withRowVersion ? Convert.ToBase64String(s.RowVersion) : null);
     }
 }

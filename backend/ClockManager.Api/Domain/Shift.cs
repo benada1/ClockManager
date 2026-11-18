@@ -41,4 +41,22 @@ public sealed class Shift
             throw new InvalidOperationException($"Clock Out ({clockOut.Utc}) must be later than Clock In ({ClockIn.Utc}).");
         ClockOut = clockOut;
     }
+
+    /// <summary>Manager correction of the clock-in (plan 07). The service checks the rules first; this is the last guard.</summary>
+    public void CorrectClockIn(PunchStamp clockIn)
+    {
+        ArgumentNullException.ThrowIfNull(clockIn);
+        if (ClockOut is not null && ClockOut.Utc <= clockIn.Utc)
+            throw new InvalidOperationException($"Clock In ({clockIn.Utc}) must be earlier than Clock Out ({ClockOut.Utc}).");
+        ClockIn = clockIn;
+    }
+
+    /// <summary>Manager correction of the clock-out, or closing a forgotten open shift (plan 07).</summary>
+    public void CorrectClockOut(PunchStamp clockOut)
+    {
+        ArgumentNullException.ThrowIfNull(clockOut);
+        if (clockOut.Utc <= ClockIn.Utc)
+            throw new InvalidOperationException($"Clock Out ({clockOut.Utc}) must be later than Clock In ({ClockIn.Utc}).");
+        ClockOut = clockOut;
+    }
 }

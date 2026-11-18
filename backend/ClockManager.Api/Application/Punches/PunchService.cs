@@ -198,8 +198,7 @@ public sealed class PunchService(
     /// punch of the same employee waits here until the first commits or rolls back. The FK checks of the Shifts and
     /// IdempotencyRecords inserts only need a shared lock on this row, which our own transaction's update lock allows.
     /// </summary>
-    private Task LockEmployeeAsync(int employeeId, CancellationToken ct) =>
-        db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [Employees] WITH (UPDLOCK, ROWLOCK) WHERE [Id] = {employeeId}", ct);
+    private Task LockEmployeeAsync(int employeeId, CancellationToken ct) => EmployeeLock.AcquireAsync(db, employeeId, ct);
 
     private Task<IdempotencyRecord?> FindRecordAsync(int employeeId, Guid key, CancellationToken ct) =>
         db.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(r => r.EmployeeId == employeeId && r.Key == key, ct);

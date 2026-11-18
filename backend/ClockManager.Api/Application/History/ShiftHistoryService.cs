@@ -59,12 +59,17 @@ public sealed class ShiftHistoryService(
     public async Task<ShiftHistoryView> GetAsync((LocalDate From, LocalDate To)? range, CancellationToken ct)
     {
         var employee = await currentEmployee.RequireActiveAsync(ct); // 401 / 403, same path as a punch
+        return await QueryAsync(employee.Id, range, withRowVersion: false, ct);
+    }
 
+    /// <summary>The history of one employee; the caller has already checked who may see it.</summary>
+    public async Task<ShiftHistoryView> QueryAsync(int employeeId, (LocalDate From, LocalDate To)? range, bool withRowVersion, CancellationToken ct)
+    {
         if (range is null)
         {
             // Default: the week of the latest shift (work date, then Id). No clock needed.
             var dates = await db.Shifts.AsNoTracking()
-                .Where(s => s.EmployeeId == employee.Id)
+                .Where(s => s.EmployeeId == employeeId)
                 .OrderByDescending(s => s.ClockIn.ZurichDate).ThenByDescending(s => s.Id)
                 .Select(s => s.ClockIn.ZurichDate)
                 .Take(1)
@@ -75,13 +80,26 @@ public sealed class ShiftHistoryService(
 
         var (from, to) = range.Value;
         var shifts = await db.Shifts.AsNoTracking()
-            .Where(s => s.EmployeeId == employee.Id && s.ClockIn.ZurichDate >= from && s.ClockIn.ZurichDate <= to)
+            .Where(s => s.EmployeeId == employeeId && s.ClockIn.ZurichDate >= from && s.ClockIn.ZurichDate <= to)
             .ToListAsync(ct);
 
         // "Now" is only needed to flag a forgotten open shift; skip the lookup when none is open.
         Instant? now = null;
         if (shifts.Any(s => s.ClockOut is null)) now = (await serverNow.GetAsync(ct))?.Utc;
 
-        return ShiftHistoryBuilder.Build(from, to, shifts, now, rules.Value, zurich);
+        var corrected = await CorrectedIdsAsync(db, shifts.Select(s => s.Id).ToList(), ct);
+        return ShiftHistoryBuilder.Build(from, to, shifts, now, rules.Value, zurich, corrected, withRowVersion);
+    }
+
+    /// <summary>Which of these shifts have at least one manager correction.</summary>
+    public static async Task<IReadOnlySet<long>> CorrectedIdsAsync(ClockManagerDbContext db, IReadOnlyCollection<long> shiftIds, CancellationToken ct)
+    {
+        if (shiftIds.Count == 0) return new HashSet<long>();
+        var ids = await db.ShiftCorrections.AsNoTracking()
+            .Where(c => shiftIds.Contains(c.ShiftId))
+            .Select(c => c.ShiftId)
+            .Distinct()
+            .ToListAsync(ct);
+        return ids.ToHashSet();
     }
 }

@@ -21,6 +21,14 @@ public static class ErrorCodes
     public const string IdempotencyKeyReused = "idempotency.key_reused";
     public const string IdempotencyKeyMissing = "idempotency.key_missing";
 
+    // Manager corrections (plans/07-manager.md §5)
+    public const string CorrectionShiftStillRunning = "correction.shift_still_running";
+    public const string CorrectionOverlap = "correction.overlap";
+    public const string CorrectionStale = "correction.stale";
+    public const string CorrectionInvalidOrder = "correction.invalid_order";
+    public const string CorrectionInFuture = "correction.in_future";
+    public const string CorrectionUnchanged = "correction.unchanged";
+
     // Employees
     public const string EmployeeInactive = "employee.inactive";
 

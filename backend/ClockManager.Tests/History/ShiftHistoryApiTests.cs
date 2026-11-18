@@ -50,7 +50,7 @@ public sealed class ShiftHistoryApiTests(MigratedDatabaseFixture database) : ICl
         Assert.Equal(61749, body.GetProperty("totalSeconds").GetInt64());
 
         var tue = days[0].GetProperty("shifts")[0];
-        Assert.Equal(["shiftId", "workDate", "clockIn", "clockOut", "durationSeconds", "endsNextDay", "open", "flags"], Names(tue));
+        Assert.Equal(["shiftId", "workDate", "clockIn", "clockOut", "durationSeconds", "endsNextDay", "open", "flags", "corrected"], Names(tue));
         Assert.Equal("2026-11-17T08:03:11+01:00", tue.GetProperty("clockIn").GetProperty("zurich").GetString());
         Assert.Equal("2026-11-17T17:12:20+01:00", tue.GetProperty("clockOut").GetProperty("zurich").GetString());
         Assert.Equal(32949, tue.GetProperty("durationSeconds").GetInt64());

@@ -522,6 +522,35 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend / UX
 - **Decision:** The employee's week reuses `WeekView` and `DayCard` with a Correct button per shift. On the manager home, Problems sits above Employees because those rows need action. The Manager link shows only for managers; the server enforces access.
 
+### D-070 — Manager access is checked against the database role
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Options:** (a) the role in the token · (b) a check in the service only · (c) a policy that loads the employee, plus the service check.
+- **Decision:** (c). Anonymous → 401; a non-manager or an inactive manager → 403 `auth.forbidden`, before the body is read.
+- **Why:** A demoted manager's 8-hour token must stop working at once (fits D-049).
+- **Trade-offs:** One employee lookup per request (shared within the request).
+
+### D-071 — A correction: trusted time first, then one transaction under the employee lock
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** A fresh trusted-clock reading (never the display cache) is taken before the transaction (D-028). Inside it: lock the employee row (D-044, same order as punches), reload the shift, compare the row version, check the rules, update the shift and insert the audit row together. 503 without trusted time, nothing saved.
+- **Why:** The employee and the manager write the same row; the lock keeps the rules atomic and the row version catches changes made since the manager read the shift. Both race orders are tested.
+
+### D-072 — The corrected time must carry the right Zurich offset
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** `newTime` is ISO with an offset that must equal the Zurich offset at that instant. In the repeated October hour both offsets are valid (two different instants); times in the spring gap are always refused. Seconds required, no `Z`, years 2026–2099, fixed messages.
+
+### D-073 — Shift rows hold the current values; corrections are an insert-only log
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend / db
+- **Decision:** The Shifts row is updated to the corrected value (so the open-shift index, the out-after-in check, History and totals keep working), and `ShiftCorrections` records old value, new value, manager, reason and trusted time. Rows are never updated or deleted; the original is the first row of each field. A corrected punch is stamped `manager_correction`.
+- **Trade-offs:** Reading the original needs the log (the shift page shows it).
+
+### D-074 — Correction rules: touching counts as overlap, no-op is refused
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** A shift may not overlap or touch another shift of the same employee (an open one counts as running until now), same as the punch guard (D-030). A correction to the current value is 422 `correction.unchanged` (not in the plan; it would only add audit noise). A manager may correct their own shifts; it is logged like any other.
+
+### D-075 — Problems list filtered in SQL, newest first, at most 100
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** Long and short shifts are found with SQL date arithmetic on the UTC instants (same bounds as the flags); forgotten clock-outs only when a trusted time exists (D-036).
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -638,6 +667,11 @@ left out, and known limitations. Entries are added in the same change as the cod
 | `from` or `to` missing, empty, wrong format, 32 days | 400 `request.invalid` with a fixed message; 31 days is accepted | `Bad_dates_are_a_400_*` |
 | Correction typed in the skipped March hour (02:00–02:59) | Refused in the form ("this time doesn't exist in Zurich"); the server refuses it too | `manager.test.js` |
 | Correction typed in the repeated October hour | The manager must choose the first (UTC+2) or second (UTC+1) occurrence | `manager.test.js` |
+| A correction while the employee clocks out (either order) | One wins; the other gets 409 (`shift.not_open` or `correction.stale`); never a 500 | `ManagerApiTests` race tests |
+| Moving a clock-in to the previous day | The work date moves with it | `ManagerApiTests.Moving_a_clock_in_to_the_previous_day_*` |
+| Closing a forgotten shift, then the employee clocks in | Works: the shift is no longer open | `ManagerApiTests.Closing_a_forgotten_shift_*` |
+| Closing a shift that may still be running | 409 `correction.shift_still_running` | `ManagerApiTests` |
+| A token still says Manager after the role was changed in the database | The database role wins: 403 | `ManagerApiTests.The_database_role_wins_*` |
 
 ## Not done (out of scope)
 
@@ -715,3 +749,4 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
   `PunchQaCancelTests.QA25_*` documents it.
 - **No token revocation, password reset or rate limit yet (Phase 4).** Logout only clears the cookie, so a stolen token works until it expires (8 h). Rate limits on login and signup come in plan 04 step 3; there is no password reset.
 - **Rate limits are in memory, per server, and per IP for login (D-054).** Users behind one NAT share the budget, behind a proxy without forwarded headers everyone shares the proxy's IP, and there is no per-account lockout or captcha.
+- **Replaying an old punch after a correction (D-032, D-073).** A retried punch with an old `Idempotency-Key` returns the answer stored at the time, not the corrected values.

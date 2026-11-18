@@ -34,6 +34,8 @@ builder.Services.AddScoped<PunchService>();
 builder.Services.AddServerNow();
 builder.Services.AddScoped<StatusService>();
 builder.Services.AddScoped<ClockManager.Api.Application.History.ShiftHistoryService>();
+builder.Services.AddScoped<ClockManager.Api.Application.Manager.ManagerService>();
+builder.Services.AddScoped<ClockManager.Api.Application.Manager.ShiftCorrectionService>();
 
 builder.Services.AddOptions<ShiftRulesOptions>()
     .BindConfiguration(ShiftRulesOptions.SectionName)

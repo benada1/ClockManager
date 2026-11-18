@@ -186,6 +186,70 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ClockManager.Api.Domain.ShiftCorrection", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CreatedProvider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("ManagerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("NewUtc")
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<DateTimeOffset?>("OldUtc")
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("ShiftId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ManagerId");
+
+                    b.HasIndex("ShiftId")
+                        .HasDatabaseName("IX_ShiftCorrections_ShiftId");
+
+                    b.ToTable("ShiftCorrections", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ShiftCorrections_CreatedProviderNotBlank", "LEN(LTRIM(RTRIM([CreatedProvider]))) > 0");
+
+                            t.HasCheckConstraint("CK_ShiftCorrections_CreatedUtcOffsetZero", "DATEPART(TZOFFSET, [CreatedUtc]) = 0");
+
+                            t.HasCheckConstraint("CK_ShiftCorrections_Field", "[Field] IN (N'ClockIn', N'ClockOut')");
+
+                            t.HasCheckConstraint("CK_ShiftCorrections_NewUtcOffsetZero", "DATEPART(TZOFFSET, [NewUtc]) = 0");
+
+                            t.HasCheckConstraint("CK_ShiftCorrections_OldUtcNullOnlyForClockOut", "[OldUtc] IS NOT NULL OR [Field] = N'ClockOut'");
+
+                            t.HasCheckConstraint("CK_ShiftCorrections_OldUtcOffsetZero", "[OldUtc] IS NULL OR DATEPART(TZOFFSET, [OldUtc]) = 0");
+
+                            t.HasCheckConstraint("CK_ShiftCorrections_ReasonNotBlank", "LEN(LTRIM(RTRIM([Reason]))) > 0");
+                        });
+                });
+
             modelBuilder.Entity("ClockManager.Api.Domain.IdempotencyRecord", b =>
                 {
                     b.HasOne("ClockManager.Api.Domain.Employee", null)
@@ -324,6 +388,23 @@ namespace ClockManager.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("ClockOut");
+                });
+
+            modelBuilder.Entity("ClockManager.Api.Domain.ShiftCorrection", b =>
+                {
+                    b.HasOne("ClockManager.Api.Domain.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_ShiftCorrections_Employees_ManagerId");
+
+                    b.HasOne("ClockManager.Api.Domain.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_ShiftCorrections_Shifts_ShiftId");
                 });
 #pragma warning restore 612, 618
         }

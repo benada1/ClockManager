@@ -42,4 +42,21 @@ public static class CurrentEmployeeExtensions
 
         return employee;
     }
+
+    /// <summary>
+    /// An active employee whose role IN THE DATABASE is Manager (plan 07 §3.1); the token's role claim is not trusted.
+    /// Otherwise 403 <c>auth.forbidden</c>.
+    /// </summary>
+    public static async Task<CurrentEmployee> RequireManagerAsync(this ICurrentEmployee current, CancellationToken ct)
+    {
+        var employee = await current.RequireActiveAsync(ct);
+        if (employee.Role != EmployeeRole.Manager) throw Forbidden();
+        return employee;
+    }
+
+    public static AppException Forbidden() => new(
+        ErrorCodes.Forbidden,
+        StatusCodes.Status403Forbidden,
+        "You are not allowed to do this.",
+        "Your role does not allow this action.");
 }
