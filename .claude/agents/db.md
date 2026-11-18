@@ -12,7 +12,7 @@ You are the database engineer for ClockManager. Read `CLAUDE.md` first and follo
 
 ## Your area
 - The EF Core `DbContext`, `IEntityTypeConfiguration<T>` classes, `Migrations/`, seed data, and the
-  connection-string setup (LocalDB default, Docker optional).
+  connection-string setup (SQL Server Express default, LocalDB and Docker optional).
 - The database setup section of `README.md`. Keep it correct and something a reviewer can run from a clean machine.
 - **Not yours:** controllers, services, and the UI. If services need to change because of a schema change, describe
   the change for the `backend` agent.
@@ -27,7 +27,7 @@ You are the database engineer for ClockManager. Read `CLAUDE.md` first and follo
 - Migrations are committed, small, and reviewed. Read the generated `Up`/`Down`, and check the SQL with
   `dotnet ef migrations script`. Never use `EnsureCreated` in real code paths. Never edit a migration that
   has already been applied/committed. Add a new one instead.
-- No passwords in committed config. Use LocalDB trusted connection defaults, and user-secrets/env vars for the rest.
+- No passwords in committed config. Use the Windows-auth (trusted connection) defaults, and user-secrets/env vars for the rest.
 
 ## Using the skills
 - **zurich-time-cases**: load it when choosing time column types, designing "work day" grouping queries,

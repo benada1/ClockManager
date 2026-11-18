@@ -2,10 +2,17 @@
 
 Employee time clock (Clock In / Clock Out). ASP.NET Core + SQL Server + React.
 
+## Prerequisites
+
+- **.NET 8 SDK** and **Node.js 22 or newer** (CI uses 22), **PowerShell 7** (for the `verify` script) and **git**.
+- A **SQL Server**: Express (default), LocalDB or Docker, see Database setup.
+- One-time: `dotnet tool restore` (installs `dotnet-ef` as a repo-local tool) and `npm install` in `frontend/`.
+- First run order: set up the database, start the backend, start the frontend, open http://localhost:5173 and sign up.
+
 ## Run locally
 
 Set up the database first (next section). In Development the backend applies migrations and seeds the
-demo employees on startup.
+demo employees on startup (setting `Database:MigrateAndSeedOnStartup`, on in `appsettings.Development.json`).
 
 Backend (http://localhost:5258, Swagger at /swagger):
 
@@ -110,7 +117,7 @@ Signup always creates an **Employee**; the manager account exists only through t
 `POST /api/punches` clocks the caller in or out. The body is **only** the intent; the server takes the time from
 the trusted clock. Any other field (e.g. `"time"`) is rejected with 400 (`DECISIONS.md` D-029).
 
-You must be logged in (see Login below); without the cookie every punch is a 401. Each punch also needs an
+You must be logged in (see Login above); without the cookie every punch is a 401. Each punch also needs an
 `Idempotency-Key` header with a new UUID. Swagger at http://localhost:5258/swagger shows the header.
 
 **Retrying a punch:** if the response is lost (or you double-click), send the **same** `Idempotency-Key` again. The
@@ -164,15 +171,27 @@ in the past and must not overlap another shift, and only a forgotten shift can b
 
 ## Tests and quality gate
 
+    dotnet test backend/ClockManager.sln                                   # backend; the integration tests need SQL Server
+    dotnet test backend/ClockManager.sln --filter "Category!=Integration"  # backend without a database
+    cd frontend; npm test                                                  # frontend logic tests (Vitest)
+
+    # the CI re-run in another time zone and culture (proves nothing depends on the server's settings)
+    $env:TZ='Pacific/Kiritimati'; $env:CLOCKMANAGER_TEST_TZ='Pacific/Kiritimati'; $env:CLOCKMANAGER_TEST_CULTURE='th-TH'
     dotnet test backend/ClockManager.sln
 
-    # everything CI checks: backend build + tests, frontend build + lint, clock guard
+    # everything CI checks: backend build + tests, frontend build + lint + tests, clock guard
     pwsh -NoProfile -File .claude/skills/verify/verify.ps1
 
 Stop a running `dotnet run` before building: it locks the files in `bin/`.
 
 Using the local clock (`DateTime.Now`, `DateTimeOffset.UtcNow`, `TimeProvider.System`, ...) in API code
 is a **build error** (RS0030, see `DECISIONS.md` D-001). Punch times come only from the trusted time provider.
+
+## Production
+
+This repository covers development and CI. `npm run build` creates `frontend/dist`, but nothing in the backend serves it, so a real
+deployment needs a web server in front that serves those files and forwards `/api` to the API over **HTTPS** (the login cookie is
+`Secure` only over HTTPS; behind a proxy that ends TLS the API needs forwarded headers configured). Not built: see DECISIONS "Not done".
 
 ## Trusted time
 

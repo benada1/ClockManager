@@ -1,6 +1,6 @@
 # 01 — Trusted clock
 
-**Status:** Approved 2026-11-17 (Q1–Q3 answered, see §8) · Steps 1–3b implemented (`/health/time` D-012; Time lab D-013, page D-014–D-017; steps 3 and 3b landed in one commit because they share the wiring) · Step 4 (qa) next
+**Status:** Done 2026-11-17 (Q1–Q3 answered, see §8) · Steps 1–4 done (provider, cross-check, health endpoint and Time lab, qa pass and fixes QA-01 to QA-11)
 **Lead agent:** backend · **Supporting:** qa (failure-mode tests, adversarial review)
 **Master plan refs:** D1, D2, D3, D7, D9 · §4 "Time provider" · CLAUDE.md rule 1
 

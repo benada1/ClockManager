@@ -1,6 +1,6 @@
 # 04 — Auth (signup, login, JWT in an HTTP-only cookie)
 
-**Status:** Done 2026-11-18 · Steps 1–2 `d160096` (cookie login, signup, dev header removed) · Step 3 (rate limits, seed manager password, README; D-054..D-056) · Next: check it with the real frontend
+**Status:** Done 2026-11-18 · Steps 1–2 `d160096` (cookie login, signup, dev header removed) · Step 3 (rate limits, seed manager password, README; D-054..D-056)
 **Refs:** master plan D10 (changed: JWT in a cookie, by the user's choice) · D-027 (dev header) · CLAUDE.md rules 2 and 3
 
 ## 1. Goal

@@ -1,6 +1,6 @@
 # 00 — Master plan: ClockManager
 
-**Status:** Approved 2026-11-17 · Phase 0 done, Phase 1 next
+**Status:** Phases 0-7 done 2026-11-18 · Phase 8 (wide QA) in progress (plans/08-qa.md) · Phase 9 next
 **Owner:** ben + Claude Code
 **Scope:** The whole assignment. Each phase below gets its own detailed `plans/NN-<feature>.md`
 before any code is written for it.
@@ -59,7 +59,7 @@ en/he display, mobile app.
 | D7 | **Monotonic guard**: a new punch time must be ≥ the employee's last punch (within a small tolerance), or it's rejected with `time.went_backwards`. | Trust the provider. | Catches provider skew between primary and secondary, and providers going back in time. |
 | D8 | **Corrections never change a punch in place.** `ShiftCorrection` rows (old value, new value, who, when, why); the shift shows the effective value. | Edit in place + log. | Full audit history; reviewers can see the original. Correction *timestamps* (the "when") also come from the trusted clock. |
 | D9 | **ProblemDetails with stable codes** (`shift.already_open`, `shift.not_open`, `time.unavailable`, `time.invalid_response`, `time.providers_disagree`, `time.went_backwards`, `idempotency.key_reused`). | Free-text errors. | The UI maps codes to clear messages; tests assert on codes. |
-| D10 | **Cookie auth with seeded users** (hashed passwords via `PasswordHasher<T>`). | ASP.NET Identity / JWT. | Smallest thing that makes "who punched" trustworthy. JWT in localStorage is worse for a browser-only client. |
+| D10 | **JWT in an HTTP-only cookie**, open signup (Employees only), hashed passwords via `PasswordHasher<T>` (changed by the user 2026-11-18, D-049). | ASP.NET Identity / JWT. | Smallest thing that makes "who punched" trustworthy. JWT in localStorage is worse for a browser-only client. |
 
 ## 4. Edge cases and "misinformation" scenarios to cover
 
@@ -151,27 +151,27 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 ### Phase 0 — Project foundations
 - [x] Create `docs/claude-worklog.md`, `DECISIONS.md` skeleton (sections: Decisions, Edge cases, Not done, Known limits).
 - [x] Add `.claude/agents/` — `backend.md`, `frontend.md`, `db.md`, `qa.md` (scope, rules, hand-off format).
-- [x] Review `.claude/settings.json` permissions (allow dotnet/npm/git read commands; ask before commit/push/DB update; deny force-push and secret files).
+- [x] Review `.claude/settings.json` permissions (allow dotnet/npm/git read commands; ask before DB update; commit and push are allowed, user choice 2026-11-17; deny force-push and secret files).
 - [x] Add `backend/ClockManager.Tests` (xUnit with plain `Assert` — see D-002, `Microsoft.AspNetCore.Mvc.Testing`); add both projects to `backend/ClockManager.sln`.
 - [x] Backend folder structure (`Domain/ Application/ Infrastructure/ Common/`), ProblemDetails middleware, Options validation on startup (D-003, D-004, D-005).
 - [x] Add a forbidden-clock check (D-001): `BannedApiAnalyzers` makes `DateTime.Now|UtcNow|Today`, `DateTimeOffset.Now|UtcNow`, `TimeProvider.System` a **build error** (RS0030); the regex guard in `/verify` stays as a second layer and covers the frontend.
 - [x] GitHub Actions CI: backend build + test, frontend lint + build, clock guard. *The SQL Server service container moves to Phase 2*, with the first tests that need it (unverified CI config is a risk).
 
 ### Phase 1 — Trusted clock (`plans/01-trusted-clock.md`) — the core
-- [ ] Research and pick 2 providers (zone support, UTC field, rate limits, HTTPS). Record the choice in DECISIONS.md.
-- [ ] `ITrustedClock.GetNowAsync(ct)` → `TrustedInstant { Utc, ZurichOffset, Provider, RoundTripMs, RawPayload, CrossCheckedBy? }`.
-- [ ] Typed `HttpClient` per provider, short timeout (e.g. 2 s), no automatic retries on the punch path (we fall back to the other provider instead).
-- [ ] Response validation (schema, zone, offset vs NodaTime tzdb, plausible range).
-- [ ] Primary → secondary fallback + cross-check + typed failure reasons.
-- [ ] `FakeTrustedClock` for tests; a stub `HttpMessageHandler` for provider-failure tests (timeouts, 5xx, 429, garbage, wrong zone, wrong offset, disagreement).
-- [ ] `/health/time` endpoint.
+- [x] Research and pick 2 providers (zone support, UTC field, rate limits, HTTPS). Record the choice in DECISIONS.md.
+- [x] `ITrustedClock.GetNowAsync(ct)` → `TrustedInstant { Utc, ZurichOffset, Provider, RoundTripMs, RawPayload, CrossCheckedBy? }`.
+- [x] Typed `HttpClient` per provider, short timeout (e.g. 2 s), no automatic retries on the punch path (we fall back to the other provider instead).
+- [x] Response validation (schema, zone, offset vs NodaTime tzdb, plausible range).
+- [x] Primary → secondary fallback + cross-check + typed failure reasons.
+- [x] `FakeTrustedClock` for tests; a stub `HttpMessageHandler` for provider-failure tests (timeouts, 5xx, 429, garbage, wrong zone, wrong offset, disagreement).
+- [x] `/health/time` endpoint.
 
 ### Phase 2 — Data model and DB (`plans/02-schema.md`)
-- [ ] Entities: `Employee`, `Shift`, `PunchAudit`/`IdempotencyRecord`, `ShiftCorrection`.
-- [ ] `IEntityTypeConfiguration<T>` for each; `datetimeoffset`, `rowversion`, filtered unique index, check constraints.
-- [ ] Initial migration committed; seed data (1 manager, 3 employees) via a migration or a startup seeder for Development only.
-- [ ] Integration test fixture against LocalDB (Testcontainers as an option in CI). Add the SQL Server service container to `.github/workflows/ci.yml`.
-- [ ] Tests: the DB rejects a second open shift; the DB rejects clock-out ≤ clock-in.
+- [x] Entities: `Employee`, `Shift`, `PunchAudit`/`IdempotencyRecord`, `ShiftCorrection`.
+- [x] `IEntityTypeConfiguration<T>` for each; `datetimeoffset`, `rowversion`, filtered unique index, check constraints.
+- [x] Initial migration committed; seed data (1 manager, 3 employees) via a migration or a startup seeder for Development only.
+- [x] Integration test fixture against LocalDB (Testcontainers as an option in CI). Add the SQL Server service container to `.github/workflows/ci.yml`.
+- [x] Tests: the DB rejects a second open shift; the DB rejects clock-out ≤ clock-in.
 
 ### Phase 3 — Punch API (`plans/03-punch-api.md`)
 - [x] `POST /api/punches` `{ "intent": "clock-in" | "clock-out" }` + `Idempotency-Key` header. **No timestamp in the body.**
@@ -192,7 +192,7 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 - [x] Login page, punch screen: big Clock In/Out button, disabled while in flight, server-time clock labeled with its source.
 - [x] States: loading, ready, in-flight, 409 (refresh + explain), 503 (banner + retry), offline, session expired.
 - [x] Refresh on focus/visibility; Zurich formatting helper; accessibility pass (labels, focus, `aria-live` for results).
-- [ ] `npm run build` + `npm run lint` clean; manual test of two tabs + provider-down (toggle via a dev config flag).
+- [x] `npm run build` + `npm run lint` clean; manual test of two tabs + provider-down (toggle via a dev config flag).
 
 ### Phase 6 — History and reports (`plans/06-history.md`)
 - [x] `GET /api/me/shifts?from&to` (Zurich dates) with daily/weekly totals computed from UTC.

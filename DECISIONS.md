@@ -227,13 +227,13 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Refs:** `.github/workflows/ci.yml` · `TestSqlServer.cs` · D-024
 
 ### D-027 — Phase 3 "who is punching": a Development-only `X-Dev-Employee` header behind `ICurrentEmployee` (superseded by D-049)
-- **Date:** 2026-11-17 · **Status:** Accepted (temporary, replaced in Phase 4) · **Area:** backend
+- **Date:** 2026-11-17 · **Status:** Superseded by D-049 (the header and its class were deleted in Phase 4) · **Area:** backend
 - **Context:** Punches need an employee, but login is Phase 4. The user chose "punch first, login later" (plan 03 §3).
 - **Options:** (a) build cookie login now · (b) `employeeId` in the punch body · (c) a dev-only header read by an `ICurrentEmployee` implementation registered only in Development.
 - **Decision:** (c). `X-Dev-Employee: <username>` loads the employee from the DB. Missing, blank, repeated or unknown → 401 `auth.unauthenticated`; `IsActive = false` → 403 `employee.inactive`. Outside Development the registered implementation always returns "nobody", so every punch is a 401 and the header is never read.
 - **Why:** `PunchService` depends only on `ICurrentEmployee`, so Phase 4 swaps the implementation without touching it. (b) would make "who" part of the client's payload, the kind of trust rule 2 forbids, and would leak into the contract.
 - **Trade-offs:** In Development anyone can act as anyone. Acceptable for a local dev stand-in; P17 proves Production ignores the header.
-- **Refs:** plans/03-punch-api.md §3 · `Infrastructure/Identity/DevHeaderCurrentEmployee.cs` · `PunchApiTests.P17_Production_ignores_X_Dev_Employee_and_answers_401`, `P18_*`
+- **Refs:** plans/03-punch-api.md §3 · plans/04-auth.md (replaced it) · `PunchApiTests.P17_the_old_X_Dev_Employee_header_is_ignored_in_every_environment_and_answers_401`
 
 ### D-028 — Punch order: state check, then the provider call, then the write; no transaction around the provider call
 - **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
@@ -400,7 +400,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** `AuthProvider` asks `GET /api/auth/me` on load. The login is an HTTP-only cookie, so JavaScript never touches a token. Any 401 `auth.unauthenticated` goes through one hook in the API client and sends the user to login.
 - **Trade-offs:** An expired session is noticed only on the next request or refresh.
 
-### D-047 — Punch screen: key per attempt, retry with the same key, no clock
+### D-047 — Punch screen: key per attempt, retry with the same key, no clock (the elapsed-time part amended by D-058)
 - **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend / UX
 - **Decision:** A new `Idempotency-Key` per attempt, kept only after errors where the result is unknown (503, 429, network, 5xx) so "Try again" can't punch twice. No live clock or timer anywhere (user's choice): a time is shown only after a punch or from a saved shift, always from the server's string, formatted in Europe/Zurich and labeled "Zurich time". The offset is added on DST days. A forgotten shift is a notice, never closed by the UI.
 - **Trade-offs:** No elapsed time while clocked in. `serverNow` from the status endpoint is not used.
@@ -551,6 +551,12 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
 - **Decision:** Long and short shifts are found with SQL date arithmetic on the UTC instants (same bounds as the flags); forgotten clock-outs only when a trusted time exists (D-036).
 
+### D-076 — The project stays on .NET 8 although its support ended on 10 Nov 2026
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** platform
+- **Options:** (a) stay on .NET 8, as the assignment says · (b) move to a newer LTS.
+- **Decision:** (a). The brief names ASP.NET Core 8; no vulnerable package is reported by `dotnet list package --vulnerable`.
+- **Trade-offs:** No further runtime patches from Microsoft. A move to a newer LTS is a package and `TargetFramework` change, not a redesign.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -672,9 +678,16 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Closing a forgotten shift, then the employee clocks in | Works: the shift is no longer open | `ManagerApiTests.Closing_a_forgotten_shift_*` |
 | Closing a shift that may still be running | 409 `correction.shift_still_running` | `ManagerApiTests` |
 | A token still says Manager after the role was changed in the database | The database role wins: 403 | `ManagerApiTests.The_database_role_wins_*` |
+| Signup/login with a taken name in another case, a short password, extra fields (`role`) | 409 / 400 with fixed messages; the role always comes from the server | `AuthApiTests` |
+| Wrong password, unknown user, user without a password | One identical 401; an inactive user gets 403 only after a correct password | `AuthApiTests` |
+| Week with a clock change, overnight shift, open shift in History | Hours from UTC; shift stays on its clock-in day; open shift listed, not counted | `ShiftHistoryApiTests`, `ShiftHistoryBuilderTests` |
+| Manager types a time in the skipped March hour or the repeated October hour | Skipped: refused. Repeated: only with an explicit offset, never guessed | `CorrectionInputTests`, `manager.test.js` |
+| Correction that overlaps, touches another shift, is in the future or changes nothing | 409 `correction.overlap` / 422 `correction.in_future` / 422 `correction.unchanged` | `ManagerApiTests` |
 
 ## Not done (out of scope)
 
+- **No production deployment.** Nothing serves `frontend/dist`; a real server needs a front web server with HTTPS (README "Production").
+- **Out of scope for this assignment:** payroll, breaks, geofencing, SSO, offline punching, multi-tenant use and translations.
 - **No component or browser tests for the frontend.** Only the punch logic is tested (Vitest, D-060); the screens are checked through the mock scenarios and the manual list in the README.
 
 ## Corrections to Claude's output
@@ -703,7 +716,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-18 | Step 2 read the open shift first and the last-punch snapshot after it, and the replay catch only handled 409s | The race loser could see the winner's instant in its "before" snapshot and answer 503 `time.went_backwards` instead of 409 or the same-key replay (failed about 3 of 4 storm runs). Found by the qa agent (QA-24, QA-15) | Snapshot first, then state check; the replay catch also covers `went_backwards` (D-043); four `QA24_*` tests un-skipped, shown to fail without the fix | `cfca4b6` |
 | 2026-11-18 | Step 2 evaluated the monotonic guard before the write and treated it as protection for the write | The guard was not atomic with the INSERT/UPDATE: a stalled punch could be stored with an instant not later than a newer punch of the same employee (overlapping or touching shifts). Found by the qa agent (QA-23), a skipped storm test that failed in most runs | The save transaction takes an update lock on the employee row and re-runs the guard under it (D-044); the test is un-skipped, stable over 10 runs, fails without the fix; two deterministic lock tests added | `63e25a8` |
 | 2026-11-18 | Step 2 put the same "A shift is already open. Clock out before clocking in again." text on every clock-in 409 | When another tab had opened AND closed a shift meanwhile, nothing was open but the text told the employee to clock out. Found by qa slice B (QA-26) | Fixed wording when there is no open shift; the code stays `shift.already_open`. Test un-skipped | `c3781df` |
-| 2026-11-18 | Claude kept the long commit subjects and bodies after the user shortened the rule | The rule change (4554d89) landed mid-step; Claude read CLAUDE.md only at the start of the session. The 11 commits from a878363 to 63e25a8 break the new rule (not rewritten, rule 6) | Rule followed from now on: subject up to about 50 characters, plain words, 1–3 line body; CLAUDE.md is re-read before each commit | `c3781df` |
+| 2026-11-18 | Claude kept the long commit subjects and bodies after the user shortened the rule | The rule change (4554d89) landed mid-step; Claude read CLAUDE.md only at the start of the session. The 14 commits from a878363 to c3781df break the new rule (not rewritten, rule 6) | Rule followed from now on: subject up to about 50 characters, plain words, 1–3 line body; CLAUDE.md is re-read before each commit | `c3781df` |
 
 ## Known limitations
 
@@ -747,6 +760,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
   shift, no record, the same key works afterwards). EF Core logs "An error occurred using a transaction" for the cancelled
   transaction. Silencing that category would also hide genuine transaction errors, so it is accepted. The skipped test
   `PunchQaCancelTests.QA25_*` documents it.
-- **No token revocation, password reset or rate limit yet (Phase 4).** Logout only clears the cookie, so a stolen token works until it expires (8 h). Rate limits on login and signup come in plan 04 step 3; there is no password reset.
+- **No token revocation and no password reset (Phase 4).** Logout only clears the cookie, so a stolen token works until it expires (8 h); a deactivated employee is still blocked because the employee is loaded on every request. Login and signup are rate limited (D-054).
 - **Rate limits are in memory, per server, and per IP for login (D-054).** Users behind one NAT share the budget, behind a proxy without forwarded headers everyone shares the proxy's IP, and there is no per-account lockout or captcha.
 - **Replaying an old punch after a correction (D-032, D-073).** A retried punch with an old `Idempotency-Key` returns the answer stored at the time, not the corrected values.
+- **`npm audit` reports a high advisory in `picomatch` (build tooling only).** GHSA-fc5q-39xc-vjpf (ReDoS in glob matching); the installed 4.0.7 is the latest release, so no fix exists and the suggested downgrades are worse. It is not in the production bundle and cannot be reached by users. Re-check later.

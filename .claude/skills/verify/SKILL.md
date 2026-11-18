@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run the project's quality gate (backend build + tests, frontend build + lint, and a scan for forbidden local-clock usage) and report the results. Use before saying any code task is done, before a commit, and after merging work from several agents. Supports running only backend or only frontend.
+description: Run the project's quality gate (backend build + tests, frontend build + lint + tests, and a scan for forbidden local-clock usage) and report the results. Use before saying any code task is done, before a commit, and after merging work from several agents. Supports running only backend or only frontend.
 ---
 
 # verify
@@ -22,6 +22,7 @@ pwsh -NoProfile -File .claude/skills/verify/verify.ps1 -Scope clock     # clock 
 | backend tests | `dotnet test` | no test project exists yet |
 | frontend build | `npm run build` (runs `npm ci` first if `node_modules` is missing) | scope = backend |
 | frontend lint | `npm run lint` (oxlint) | scope = backend |
+| frontend test | `npm test` (Vitest) | scope = backend |
 | clock guard | scans source files for `DateTime.Now/UtcNow/Today`, `DateTimeOffset.Now/UtcNow`, `TimeProvider.System`, `new Date()`, `Date.now()` | never |
 
 The clock guard enforces CLAUDE.md rule 1. To allow a use that is not a punch, add the comment

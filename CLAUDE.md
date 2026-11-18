@@ -2,7 +2,7 @@
 
 Employee time-clock system: employees **Clock In / Clock Out** of shifts.
 Stack: **ASP.NET Core 8 Web API** · **Microsoft SQL Server** (EF Core) · **React 19 + Vite** (JSX).
-
+Stack: **ASP.NET Core 8 Web API** · **Microsoft SQL Server** (EF Core, NodaTime) · **React 19 + Vite** (JSX, Tailwind CSS v4, Vitest). Login is a JWT in an HTTP-only cookie.
 This is a graded home assignment. Reviewers read the code, the commit history, `README.md`,
 `DECISIONS.md`, this file, `.claude/`, and the work plans. **Depth over breadth**: a few features
 done thoroughly, with reasons, are better than many shallow ones. Anything not done goes into `DECISIONS.md`.
@@ -25,7 +25,7 @@ done thoroughly, with reasons, are better than many shallow ones. Anything not d
 2. **The server is the source of truth.** All business rules (one open shift, ordering, limits) are
    checked on the server and protected in the DB with constraints. The UI only shows the result.
 3. **No secrets in git.** Connection strings with passwords and API keys go in `dotnet user-secrets`
-   or environment variables. `appsettings.Development.json` may hold LocalDB/trusted-connection defaults only.
+   or environment variables. `appsettings.Development.json` may hold trusted-connection (Windows auth) defaults only.
 4. **Every non-obvious decision goes in `DECISIONS.md`**: the decision, the alternatives, the reason,
    and the trade-off. Do this in the same change that makes the decision, not afterwards, using the
    `record-decision` skill. Do it without being asked.
@@ -61,10 +61,10 @@ done thoroughly, with reasons, are better than many shallow ones. Anything not d
 
 ```
 backend/ClockManager.Api/      ASP.NET Core Web API (controllers, services, EF Core, time provider)
-backend/ClockManager.Tests/    xUnit tests (unit + integration)            [to be created]
+backend/ClockManager.Tests/    xUnit tests (unit + integration)
 frontend/                      React 19 + Vite, JSX, oxlint; /api proxied to the backend
 plans/                         Work plans, one markdown file per feature/phase (deliverable)
-.claude/agents/                Subagents: backend, frontend, db, qa          [to be created]
+.claude/agents/                Subagents: backend, frontend, db, qa
 .claude/settings.json          Shared Claude Code settings/permissions
 DECISIONS.md                   Decisions, edge cases, things not done, known limits (deliverable)
 README.md                      Local setup, including database setup (deliverable)
@@ -81,6 +81,7 @@ Backend (port 5258, Swagger at `/swagger`):
 cd backend/ClockManager.Api; dotnet run
 dotnet build backend/ClockManager.Api
 dotnet test backend/ClockManager.Tests
+dotnet tool restore   # once: installs dotnet-ef (local tool)
 dotnet ef migrations add <Name> --project backend/ClockManager.Api
 dotnet ef database update --project backend/ClockManager.Api
 ```
@@ -88,6 +89,8 @@ Frontend (port 5173):
 ```powershell
 cd frontend; npm install; npm run dev
 npm run build   # must pass before you call frontend work done
+npm test        # Vitest, logic tests
+npm run dev:mock  # UI with a fake API, scenarios via ?mock=...
 npm run lint    # oxlint, must be clean
 ```
 The dev machine is Windows (PowerShell). The default dev DB is **SQL Server Express `.\SQLEXPRESS`**
