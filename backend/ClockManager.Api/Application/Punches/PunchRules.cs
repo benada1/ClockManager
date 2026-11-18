@@ -50,11 +50,18 @@ public static class PunchErrors
     public const string OpenShiftKey = "openShift";
 
     /// <summary>409 <c>shift.already_open</c>; the body carries the open shift (null if it was closed meanwhile).</summary>
+    /// <summary>
+    /// 409 for a clock-in. With an <paramref name="openShift"/> the employee really is clocked in. Without one, another tab
+    /// opened AND closed a shift during our provider call (QA-26): nothing is open now, so the text must not tell the
+    /// employee to clock out. The code stays <c>shift.already_open</c> (stable); a plain retry succeeds.
+    /// </summary>
     public static AppException AlreadyOpen(ShiftView? openShift) => new(
         ErrorCodes.ShiftAlreadyOpen,
         StatusCodes.Status409Conflict,
-        "You are already clocked in.",
-        "A shift is already open. Clock out before clocking in again.",
+        openShift is null ? "Your shift changed in another tab." : "You are already clocked in.",
+        openShift is null
+            ? "Your shift was changed in another tab while this punch was being recorded. Nothing was recorded; refresh and try again."
+            : "A shift is already open. Clock out before clocking in again.",
         new Dictionary<string, object?> { [OpenShiftKey] = openShift });
 
     public static AppException NotOpen() => new(

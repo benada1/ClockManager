@@ -120,8 +120,7 @@ public sealed class PunchQaStatusTests(MigratedDatabaseFixture database) : IClas
         Assert.Equal(JsonValueKind.Null, body.GetProperty("openShift").ValueKind);
     }
 
-    [SqlServerFact(Skip = "QA-26 open: when the other tab already closed its shift again, the 409 says 'You are already clocked in. A shift is already open. Clock out before clocking in again.' with openShift null: nothing is open, and a plain retry succeeds.")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerFact]
     public async Task QA26_a_409_with_no_open_shift_does_not_claim_a_shift_is_open()
     {
         var (_, body) = await ClockInOverlappedByAnotherTabsWholeCycleAsync();

@@ -194,3 +194,14 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
   Punches of one employee queue for one short transaction; other employees are unaffected. The storm test is un-skipped, ran
   10 times in a row, and fails without the fix (`shifts overlap or touch: ...`); a deterministic test holds the lock from a
   second connection and shows the punch waits, then gets 409 or succeeds after release.
+
+## 2026-11-18 — Misleading 409 wording, and long commit messages after the rule changed
+
+- **Asked:** Phase 3 step 5, qa slice B. It found that a clock-in 409 with no open shift still said "Clock out before
+  clocking in again" (QA-26): another tab had opened and closed a shift during our provider call.
+- **Fix:** with no open shift the text says the shift changed in another tab and to refresh and retry. The code and status stay
+  the same. The skipped test is un-skipped. QA-25 (an extra EF log line on a client disconnect) was accepted, not fixed.
+- **Process miss:** the user shortened the commit rule (`4554d89`, 2026-11-17 19:51) in the middle of step 1. Claude read
+  CLAUDE.md only at the start of the session, so 11 commits kept the old long style. They are not rewritten (rule 6).
+  Also found while closing the phase: three corrections rows added by agents sat after the Known limitations section
+  instead of in the table, and one row was duplicated. They were moved and the real commit hashes filled in.
