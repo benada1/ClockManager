@@ -1,6 +1,6 @@
 # 03 — Punch API
 
-**Status:** Approved 2026-11-17 (Q1 key required, Q2 went_backwards = 503, Q3 cached trusted server-now) · Steps 1–4 done (a878363, 3ae512b, 3e5665b, 49ee54f) · Step 5 qa slice A committed (QA-17..22 open, tests skipped until their fix commits)
+**Status:** Approved 2026-11-17 (Q1 key required, Q2 went_backwards = 503, Q3 cached trusted server-now) · Steps 1–4 done · Step 5 qa slices A + B committed; QA-17..22 fixed; QA-23..26 open (tests skipped until their fix commits)
 **Lead agent:** backend · **Supporting:** db (idempotency table, transaction review), qa (race, replay, failure tests)
 **Master plan refs:** D1, D5, D6, D7, D9 · §4 "Concurrency", "Business-rule edges" · CLAUDE.md rules 1 and 2
 

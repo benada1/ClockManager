@@ -468,6 +468,12 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Bob uses alice's key | Keys are scoped per employee: bob gets his normal result, no 422, no leak | `PunchQaKeyTests.Bob_using_alices_key_*` |
 | Client-supplied time (extra JSON keys, `?time=`, `Date` / `X-Forwarded-*` headers) | Extra keys give 400; query and headers are ignored; the stored time equals the trusted clock | `PunchQaBodyTests.Bad_body_*`, `Query_string_time_and_header_dates_are_ignored_*` |
 | Clock-out 1 ms after the clock-in | Accepted; 0 s duration, flagged `short_shift` | `PunchQaGuardTests.Clock_out_one_millisecond_after_*` |
+| Race loser's last-punch snapshot is read after the state check, and its trusted instant equals the winner's | Today 503 `time.went_backwards` (even for a same-key twin) instead of 409 or the idempotent replay | open (`QA24_*`, skipped) |
+| A punch stalls between the monotonic guard and its INSERT while another tab punches in + out | Today overlapping or touching shifts are possible; the DB has no cross-shift ordering constraint | open (`QA23_a_storm_never_leaves_overlapping_or_touching_shifts`, skipped) |
+| 409 `shift.already_open` when the other tab's shift is already closed again | Today `openShift: null` with the "clock out" wording | open (`QA26_*`, skipped) |
+| Client abort while the DB write is in flight | Rolled back, no shift and no record, the same key works afterwards; EF logs an Error line | `Abort_while_the_INSERT_waits_on_the_database_rolls_back_and_the_same_key_then_works`; log noise open (`QA25_*`, skipped) |
+| Zurich boundaries over HTTP (repeated October hour, DST start, midnight, new year, 2027 / 2028 change dates) | Response, DB row and status agree; durations come from UTC; flags at exact thresholds | `PunchQaDstHttpTests` |
+| 30 parallel clock-ins (same key / different keys), 80-request in/out storm, 20 employees in parallel | Never a 500, never two open shifts, every 201 matches a stored row, records == successes, no cross-talk or deadlock | `PunchQaConcurrencyTests` |
 
 ## Not done (out of scope)
 
