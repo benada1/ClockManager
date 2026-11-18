@@ -337,13 +337,21 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
         Assert.Equal(Problem, me401.Content.Headers.ContentType?.MediaType);
     }
 
-    [SqlServerTheory(Skip = "QA-19 open: 400 bodies echo System.Text.Json internals (CLR type names like ClockManager.Api.Application.Punches.PunchRequest / System.String, 'LineNumber | BytePositionInLine') and a 'request field is required' noise entry. Expected: only stable, client-facing messages.")]
-    [Trait("Status", "KnownBug")]
-    [InlineData("""{"intent":"clock-in",}""")]
-    [InlineData("""{"intent":true}""")]
-    [InlineData("12")]
-    [InlineData("""{"intent":"clock-in","time":"x"}""")]
-    public async Task Bad_body_400_does_not_expose_CLR_type_names_or_parser_positions(string body)
+    // QA-19 / D-040: the 400 `errors` hold only fixed, client-facing sentences keyed by the wire field name.
+    [SqlServerTheory]
+    [InlineData("""{"intent":"clock-in",}""", "body", "must be a JSON object")]                       // invalid JSON
+    [InlineData("not json", "body", "must be a JSON object")]
+    [InlineData("12", "body", "must be a JSON object")]                                              // wrong top-level type
+    [InlineData("""{"intent":true}""", "intent", "has the wrong type or an invalid value")]
+    [InlineData("""{"intent":12}""", "intent", "has the wrong type or an invalid value")]
+    [InlineData("""{"intent":["clock-in"]}""", "intent", "has the wrong type or an invalid value")]
+    [InlineData("""{"intent":{"x":1}}""", "intent", "has the wrong type or an invalid value")]
+    [InlineData("""{"intent":"clock-in","time":"x"}""", "time", "unknown field 'time' is not allowed; the server sets the time")]
+    [InlineData("", "body", "must be a JSON object")]                                                // missing body
+    [InlineData("null", "body", "must be a JSON object")]
+    [InlineData("{}", "intent", "must be \"clock-in\" or \"clock-out\"")]                            // empty object
+    [InlineData("""{"intent":"nope"}""", "intent", "must be \"clock-in\" or \"clock-out\"")]
+    public async Task Bad_body_400_does_not_expose_CLR_type_names_or_parser_positions(string body, string key, string message)
     {
         var clock = new FakeTrustedClock(FakeNow);
         await using var factory = new PunchApiFactory(database, clock);
@@ -352,9 +360,31 @@ public sealed class PunchQaBodyTests(MigratedDatabaseFixture database) : IClassF
 
         var reply = await SendAsync(client, body, user);
 
-        Assert.Equal(HttpStatusCode.BadRequest, reply.Status);
-        foreach (var leak in new[] { "System.", "ClockManager.", "LineNumber", "BytePositionInLine", ".NET member", "Path: $" })
-            Assert.False(reply.Text.Contains(leak), $"'{leak}' leaked: {reply.Text}");
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+        foreach (var leak in new[] { "System.", "ClockManager.", "LineNumber", "BytePositionInLine", ".NET member", "Path: $", "$.", "The request field", "could not be" })
+            Assert.False(reply.Text.Contains(leak, StringComparison.Ordinal), $"'{leak}' leaked: {reply.Text}");
+        var errors = reply.Body.GetProperty("errors");
+        var keys = errors.EnumerateObject().Select(p => p.Name).ToArray();
+        Assert.Equal([key], keys);                                       // no "request" noise entry, no second key
+        Assert.Equal([message], errors.GetProperty(key).EnumerateArray().Select(m => m.GetString()!).ToArray());
+    }
+
+    [SqlServerTheory]
+    [InlineData("""{"intent":"clock-in","Tim\u0000e\n":1}""")]
+    [InlineData("""{"intent":"clock-in","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":1}""")]
+    public async Task Unknown_field_name_echoed_to_the_client_has_no_control_characters_and_is_capped(string body)
+    {
+        var clock = new FakeTrustedClock(FakeNow);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (_, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, body, user);
+
+        AssertProblem(reply, HttpStatusCode.BadRequest, ErrorCodes.RequestInvalid);
+        var name = Assert.Single(reply.Body.GetProperty("errors").EnumerateObject()).Name;
+        Assert.InRange(name.Length, 1, InvalidRequestResponse.MaxFieldNameLength);
+        Assert.DoesNotContain(name, char.IsControl);
     }
 
     // ---------- Helpers ----------

@@ -85,7 +85,7 @@ public sealed class ProblemDetailsTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(ProblemJson, response.Content.Headers.ContentType?.MediaType);
         var body = await ReadJson(response);
         Assert.Equal(ErrorCodes.RequestInvalid, body.GetProperty("code").GetString());
-        Assert.True(body.GetProperty("errors").TryGetProperty("Name", out _));
+        Assert.True(body.GetProperty("errors").TryGetProperty("name", out _));
         AssertHasTraceId(body);
     }
 

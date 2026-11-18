@@ -27,9 +27,12 @@ public sealed class PunchRequest
     public const string ClockIn = "clock-in";
     public const string ClockOut = "clock-out";
 
+    /// <summary>Client-facing text, shown under the <c>intent</c> key of <c>errors</c> (D-040).</summary>
+    public const string IntentMessage = "must be \"clock-in\" or \"clock-out\"";
+
     /// <summary><c>"clock-in"</c> or <c>"clock-out"</c>, exact and lower case.</summary>
-    [Required(AllowEmptyStrings = false)]
-    [RegularExpression("^(clock-in|clock-out)$", ErrorMessage = "intent must be \"clock-in\" or \"clock-out\".")]
+    [Required(AllowEmptyStrings = false, ErrorMessage = IntentMessage)]
+    [RegularExpression("^(clock-in|clock-out)$", ErrorMessage = IntentMessage)]
     public string? Intent { get; init; }
 
     /// <summary>The validated intent. Call only after model validation passed.</summary>

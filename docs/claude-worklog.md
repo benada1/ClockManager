@@ -134,3 +134,14 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Fix:** removed the controller-level attribute; the media type is declared on each `[ProducesResponseType]`
   (success `application/json`, errors `application/problem+json`), so Swagger still documents both (D-039). The test is
   un-skipped and now checks 400/401/403/409/415/422/503 plus the framework 404/405 and the status endpoint's 401.
+
+## 2026-11-18 — 400 bodies leaked CLR type names and parser positions (QA-19)
+
+- **Asked:** Phase 3 step 1, the punch endpoint with ProblemDetails errors and a strict body (D-029).
+- **What went wrong:** Claude kept the default `[ApiController]` 400 output and only checked status and `code`. For bad JSON the
+  `errors` carried System.Text.Json text: `ClockManager.Api.Application.Punches.PunchRequest`, `LineNumber | BytePositionInLine`,
+  `$.intent` paths and a `"request": "The request field is required."` noise entry. That is an information leak and an unstable text.
+- **Found by:** the qa agent in Phase 3 (QA-19), as a skipped known-bug test.
+- **Fix:** one `InvalidModelStateResponseFactory` (`InvalidRequestResponse`, D-040) replaces every JSON-reader message with a fixed
+  sentence keyed by the wire field name (or `body`), echoes an unknown member name only after cleaning and capping it, and still
+  returns `request.invalid` / `application/problem+json`. The test is un-skipped and was shown to fail without the fix.

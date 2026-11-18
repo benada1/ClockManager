@@ -32,6 +32,9 @@ public static class ProblemDetailsSetup
                 }
             };
         });
+        // One place for the 400 text of every [ApiController]: fixed client-facing messages, no CLR names (D-040).
+        services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+            options.InvalidModelStateResponseFactory = InvalidRequestResponse.Create);
         services.AddExceptionHandler<AppExceptionHandler>();
         return services;
     }
