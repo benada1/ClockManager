@@ -154,6 +154,14 @@ with day and week totals counted from the UTC instants. Without `from` and `to` 
 shift. A shift stays on the day it started (`endsNextDay` marks overnight ones), an open shift is listed but not counted, and a day
 with a clock change is noted (D-064..D-066). In the app, open **History** in the header.
 
+## Manager view (Phase 7)
+
+Log in as a **Manager** (only through the seed: `dotnet user-secrets set "Seed:ManagerPassword" "<password>"`, then user `manager`) and
+open **Manager** in the header. You see the team (who is clocked in, warnings) and a list of problems (forgotten clock-outs, unusually long or
+short shifts). Open an employee's week or a shift and press **Correct** to fix a clock-in or clock-out time: a reason is required, the time must be
+in the past and must not overlap another shift, and only a forgotten shift can be closed. The original value, the new value, who changed it, when
+(trusted clock) and why are kept for ever, and the employee sees "Corrected by a manager" in their History (D-067..D-075).
+
 ## Tests and quality gate
 
     dotnet test backend/ClockManager.sln

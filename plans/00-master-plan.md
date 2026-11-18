@@ -195,16 +195,16 @@ session runs `/verify` and commits. The qa agent writes tests but never changes 
 - [ ] `npm run build` + `npm run lint` clean; manual test of two tabs + provider-down (toggle via a dev config flag).
 
 ### Phase 6 — History and reports (`plans/06-history.md`)
-- [ ] `GET /api/me/shifts?from&to` (Zurich dates) with daily/weekly totals computed from UTC.
-- [ ] UI: week view, overnight and DST shifts labeled, flags shown.
-- [ ] Tests: totals across DST weeks, year boundary, overnight shifts.
+- [x] `GET /api/me/shifts?from&to` (Zurich dates) with daily/weekly totals computed from UTC.
+- [x] UI: week view, overnight and DST shifts labeled, flags shown.
+- [x] Tests: totals across DST weeks, year boundary, overnight shifts.
 
 ### Phase 7 — Manager view and corrections (`plans/07-manager.md`)
-- [ ] `GET /api/manager/employees` (live status + flags); `GET /api/manager/anomalies`.
-- [ ] `POST /api/manager/shifts/{id}/corrections` (reason required, rowversion, validation: no overlap, not in the future, out > in).
-- [ ] Close a forgotten shift *only* through a correction with a reason; the original "open" state stays in the audit.
-- [ ] UI: employee list, anomaly list, correction dialog, audit history per shift.
-- [ ] Tests: correction audit is kept, overlap is rejected, concurrency conflict → 409.
+- [x] `GET /api/manager/employees` (live status + flags); `GET /api/manager/anomalies`.
+- [x] `POST /api/manager/shifts/{id}/corrections` (reason required, rowversion, validation: no overlap, not in the future, out > in).
+- [x] Close a forgotten shift *only* through a correction with a reason; the original "open" state stays in the audit.
+- [x] UI: employee list, anomaly list, correction dialog, audit history per shift.
+- [x] Tests: correction audit is kept, overlap is rejected, concurrency conflict → 409.
 
 ### Phase 8 — QA pass (`qa` agent)
 - [ ] The qa agent reviews each area against section 4 and writes failing tests and repro steps for anything missing.

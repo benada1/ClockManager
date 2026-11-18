@@ -1,6 +1,6 @@
 # 07 — Manager view and corrections
 
-**Status:** Draft 2026-11-18, waiting for approval · **Lead agents:** backend, frontend (in parallel against the contract below)
+**Status:** Done 2026-11-18 · Manager UI `821a895` (D-067..D-069), API and corrections `b4c6ff3` (D-070..D-075), no-op message `963b94d` · Checked on the real stack with a throwaway database (login, punches, 403 for employees, correction 201 with audit row, stale 409, future 422, wrong offset 400, employee sees "corrected") · Still to do by hand: look at the pages in a browser
 **Refs:** master plan D8 · D-025 (ShiftCorrection table moved here) · D-044 (employee lock) · D-049 (roles) · CLAUDE.md §2 "Manual corrections"
 **User choices (2026-11-18):** scope **medium** (see everyone, close forgotten shifts, fix clock-in/out times, always with a reason) · the manager **types the corrected time**.
 
