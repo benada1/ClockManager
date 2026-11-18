@@ -703,6 +703,22 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Login/signup field errors | Should move focus or be announced | manual check (QA-33: focus moves to the first invalid field) |
 | Long unbroken names or reasons | Must wrap, not scroll the page | manual check (QA-34: text wraps) |
 | More than 100 problems in the list | The page must say it shows the newest 100 | manual check (QA-35: "Showing the newest 100") |
+| Body charset `utf-16` or an empty `charset=` | Open (QA-42): every JSON endpoint answers 500 instead of a 4xx | `AuthQaInputTests.QA42_*` (skipped) |
+| A stored password hash that is not base64 | Open (QA-43): login answers 500 instead of 401; base64-looking junk is a normal 401 | `AuthQaInputTests.QA43_*` (skipped) |
+| A token for a deleted or missing employee on manager endpoints | Open (QA-45): 403 today, 401 expected (`/api/me/*` already gives 401) | `AuthQaTokenTests.QA45_*` (skipped) |
+| Duplicate JSON members in signup and login | Open (QA-41): the last one wins (the punch body rejects them) | `AuthQaInputTests.QA41_*` (skipped) |
+| An IPv6 client rotating addresses inside one /64 | Open (QA-46): each address has its own login budget | `AuthQaRateLimitTests.QA46_*` (skipped) |
+| Signup and login request size | Open (QA-48): only the framework default (30 MB) applies | `AuthQaHostTests.QA48_*` (skipped) |
+| JSON responses without `X-Content-Type-Options: nosniff` | Open (QA-44), defence in depth | `AuthQaInputTests.QA44_*` (skipped) |
+| 20 parallel signups with one name | One 201, 19 clean 409s; the losers log an EF Error line (QA-47, accepted like QA-25) | `AuthQaConcurrencyTests` |
+| `X-Forwarded-For`, `Forwarded`, `X-Real-IP` | Ignored: the connection address picks the rate-limit partition | `AuthQaRateLimitTests.Forwarding_headers_*` |
+| Forged token naming a victim | 401, and it never spends the victim's punch budget | `AuthQaRateLimitTests.A_forged_token_*` |
+| `alg:none`, other algorithm, payload swap, wrong issuer/audience, no `exp`, future `nbf` | 401 on every endpoint kind | `AuthQaTokenTests.Forged_stale_and_odd_tokens_*` |
+| Token in the `Authorization` header, the query string or another cookie name | Ignored: 401 | `AuthQaTokenTests.A_good_token_outside_the_cookie_*` |
+| Employee or anonymous asking about a missing or an existing id | Identical 403 / 401: existence is not revealed | `ManagerQaAccessTests` |
+| Cross-site POST (text, form, multipart, XML) with a valid cookie | 415 and nothing changes; no CORS headers anywhere | `AuthQaBrowserTests` |
+| Swagger and the time lab outside Development | 404 | `AuthQaHostTests` |
+| Seed in Production or Staging, or a blank `Seed:ManagerPassword` | Nothing created / nobody gets a hash | `AuthQaSeedTests` |
 
 ## Not done (out of scope)
 
@@ -786,3 +802,4 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 - **`npm audit` reports a high advisory in `picomatch` (build tooling only).** GHSA-fc5q-39xc-vjpf (ReDoS in glob matching); the installed 4.0.7 is the latest release, so no fix exists and the suggested downgrades are worse. It is not in the production bundle and cannot be reached by users. Re-check later.
 - **Screen details that need a real browser or screen reader to judge (frontend QA).** (a) The elapsed counter adds a monotonic stopwatch to the last server time, so after a laptop sleep it can lag until the next focus refresh (QA-37). (b) In Chromium a second Escape press can close the correction dialog even while a save is running (QA-38). (c) A result message that appears together with its live region may not be read out by every screen reader (QA-39). (d) No skip link, the page title is the same on every route, and minutes are floored per shift and per total, so rows can differ from the total by a minute. All are low impact; nobody has checked them in a real browser yet.
 - **The built frontend is not served by the API (QA-32).** Documented in the README ("Production"). Also, the app lives at the root of one origin: the cookie is `SameSite=Lax` and the files use absolute paths, so serving under a sub-path is not supported.
+- **Login details found by QA (pinned by tests).** Login matches names with the database collation, so a trailing space or full-width letters can log in (signup can't create such names, so no clash). Logout is a plain POST, so another site can sign a user out (nuisance only; the request carries no cookie because of `SameSite=Lax`). The server doesn't check `Origin`: it relies on no CORS plus `Lax`, so adding CORS later needs a review (D-049). The password minimum counts UTF-16 units, so 4 emoji pass.
