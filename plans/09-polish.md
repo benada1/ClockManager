@@ -1,6 +1,6 @@
 # 09 — Deliverables polish
 
-**Status:** Draft, waiting for approval
+**Status:** In progress 2026-11-18 · approved with defaults (CRLF recorded as a known nit, throwaway database for the clean-clone run) · Task 1 (clean clone) half done, see §7
 **Why:** Reviewers read the README, DECISIONS.md, the worklog, CLAUDE.md, `.claude/`, the plans and the commit history. Phases 0–8 built and tested the app; this phase makes sure
 what they read is true, consistent and easy to follow from a clean clone. No new features.
 
@@ -36,3 +36,11 @@ Scripted checks for the doc claims (D-numbers, test names in edge-case rows, has
 ## 6. Questions for you
 1. Line endings: add `.gitattributes` and renormalize in one commit (clean, but a big diff), or just record it as a known nit?
 2. Should the clean-clone run use a throwaway database name (my default), or do you want it on your normal `ClockManager` database?
+
+## 7. Progress log
+**Task 1, clean-clone test (paused 2026-11-18, not committed as done):** fresh `git clone` into the scratchpad, own database `ClockManager_CleanClone` (set through `ConnectionStrings__ClockManager`, so the user's secrets store was not touched).
+- Done and fine: `dotnet tool restore`, `dotnet ef database update` from an empty database (all migrations apply), `npm install`, `npm run build`, `npm test` (100 pass).
+- Finding: `npm run lint` is clean of errors but prints one warning (`react(set-state-in-effect)` in `src/auth/AuthProvider.jsx:24`). CLAUDE.md says lint "must be clean": fix it or record it.
+- Not finished: starting the API from the clone. My first try used `--no-launch-profile`, so it ran outside Development and correctly refused to start without `Auth:SigningKey` (not a README bug). Retry with plain `dotnet run` (or `ASPNETCORE_ENVIRONMENT=Development`) on a spare port (5397), then check seeding, signup and the seeded manager login, then `dotnet test` from the clone.
+- Cleanup still to do: drop database `ClockManager_CleanClone`, delete the scratchpad clone, make sure nothing listens on 5397.
+- Tasks 2 to 7 not started.
