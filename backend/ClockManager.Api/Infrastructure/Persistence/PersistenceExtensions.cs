@@ -1,3 +1,4 @@
+using ClockManager.Api.Application.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -41,6 +42,10 @@ public static class PersistenceExtensions
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ClockManagerDbContext>();
         await db.Database.MigrateAsync(cancellationToken);
-        await DevelopmentSeeder.SeedAsync(db, cancellationToken);
+        await DevelopmentSeeder.SeedAsync(
+            db,
+            cancellationToken,
+            scope.ServiceProvider.GetRequiredService<PasswordService>(),
+            app.Configuration[DevelopmentSeeder.ManagerPasswordKey]);
     }
 }

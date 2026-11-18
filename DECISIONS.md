@@ -439,6 +439,22 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
 - **Decision:** The role is set by the server; a `role` field in the body is ignored. Managers exist only through the seed. Username: 3–32 letters, digits, `.`, `_`, `-`, unique ignoring case; password 8–128.
 
+### D-054 — Rate limits with the built-in limiter, fixed windows
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Options:** (a) a package such as AspNetCoreRateLimit · (b) sliding window or token bucket · (c) built-in `Microsoft.AspNetCore.RateLimiting`, fixed windows, no queue.
+- **Decision:** (c). Login and signup: 10 per minute per IP (one shared budget). Punches: 60 per minute per signed-in employee. All under `RateLimits`. A refusal is 429 `request.rate_limited` with `Retry-After`.
+- **Why:** No new dependency, per-endpoint policies, easy to test. A login screen should answer at once, so no queue.
+- **Trade-offs:** A fixed window allows up to twice the limit across a boundary. State is in memory per process (several servers would each count). Behind a proxy the IP is the proxy's until forwarded headers are set up. Users behind one NAT share a budget.
+
+### D-055 — The punch limit is per employee and sits after authentication
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** The punch limit uses the token's `sub`, so one runaway client can't hammer the time providers; anonymous requests are not counted, so they get 401 and can't use up anyone's budget. Failed punches (409, 422, 503) count too.
+
+### D-056 — The seeded manager gets a password only from configuration
+- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
+- **Decision:** In Development, `Seed:ManagerPassword` (user-secrets or env) gives only `manager` a login, and only while it has none; re-running the seed never changes an existing hash. Other seeded users have no password.
+- **Why:** A demo login without a password in git (rule 3).
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -624,3 +640,4 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
   transaction. Silencing that category would also hide genuine transaction errors, so it is accepted. The skipped test
   `PunchQaCancelTests.QA25_*` documents it.
 - **No token revocation, password reset or rate limit yet (Phase 4).** Logout only clears the cookie, so a stolen token works until it expires (8 h). Rate limits on login and signup come in plan 04 step 3; there is no password reset.
+- **Rate limits are in memory, per server, and per IP for login (D-054).** Users behind one NAT share the budget, behind a proxy without forwarded headers everyone shares the proxy's IP, and there is no per-account lockout or captcha.

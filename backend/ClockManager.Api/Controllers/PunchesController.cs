@@ -1,7 +1,9 @@
 using ClockManager.Api.Application.Punches;
 using ClockManager.Api.Application.Shifts;
 using Microsoft.AspNetCore.Authorization;
+using ClockManager.Api.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ClockManager.Api.Controllers;
 
@@ -20,6 +22,7 @@ public sealed class PunchesController(PunchService punches) : ControllerBase
     /// <param name="request"><c>{ "intent": "clock-in" | "clock-out" }</c>. Any other member is a 400.</param>
     /// <param name="idempotencyKey">Required: a new UUID per punch, the same one on a retry.</param>
     [HttpPost]
+    [EnableRateLimiting(RateLimitingExtensions.PunchPolicy)]
     [Consumes("application/json")]
     [ProducesResponseType<ShiftView>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -27,6 +30,7 @@ public sealed class PunchesController(PunchService punches) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
     public async Task<ActionResult<ShiftView>> Punch(
         [FromBody] PunchRequest request,

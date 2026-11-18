@@ -15,5 +15,7 @@ internal static class NoDatabaseHostSettings
         {
             ["ConnectionStrings:ClockManager"] = "Server=no-database-in-this-test;Database=none",
             ["Database:MigrateAndSeedOnStartup"] = "false",
+            ["RateLimits:AuthPermitLimit"] = "100000",
+            ["RateLimits:PunchPermitLimit"] = "100000",
         }));
 }

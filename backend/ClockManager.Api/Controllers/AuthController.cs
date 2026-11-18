@@ -1,7 +1,9 @@
 using ClockManager.Api.Application.Auth;
 using ClockManager.Api.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
+using ClockManager.Api.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ClockManager.Api.Controllers;
 
@@ -14,6 +16,8 @@ public sealed class AuthController(AuthService auth, AuthCookie cookie) : Contro
     /// <summary>Creates an Employee account and signs it in (the cookie is set).</summary>
     [HttpPost("signup")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingExtensions.AuthPolicy)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     [Consumes("application/json")]
     [ProducesResponseType<AuthUserView>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -28,6 +32,8 @@ public sealed class AuthController(AuthService auth, AuthCookie cookie) : Contro
     /// <summary>Checks the password and sets the cookie.</summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingExtensions.AuthPolicy)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     [Consumes("application/json")]
     [ProducesResponseType<AuthUserView>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]

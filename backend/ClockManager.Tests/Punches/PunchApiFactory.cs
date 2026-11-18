@@ -44,6 +44,8 @@ internal sealed class PunchApiFactory(
         {
             ["ConnectionStrings:ClockManager"] = database.ConnectionString,
             ["Database:MigrateAndSeedOnStartup"] = "false", // the fixture already migrated; tests add their own employees
+            ["RateLimits:AuthPermitLimit"] = "100000", // limits never get in the way, except in RateLimitingTests
+            ["RateLimits:PunchPermitLimit"] = "100000",
         }));
         builder.ConfigureTestServices(services =>
         {

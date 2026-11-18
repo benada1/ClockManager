@@ -5,6 +5,7 @@ using ClockManager.Api.Infrastructure.Identity;
 using ClockManager.Api.Common;
 using ClockManager.Api.Common.Errors;
 using ClockManager.Api.Infrastructure.Persistence;
+using ClockManager.Api.Infrastructure.RateLimiting;
 using ClockManager.Api.Infrastructure.Time;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +27,7 @@ builder.Services.AddPersistence();
 
 // Login (JWT in an HttpOnly cookie) and "who is punching" (ICurrentEmployee) from it.
 builder.Services.AddAuth(builder.Environment);
+builder.Services.AddAppRateLimiting();
 builder.Services.AddScoped<PunchService>();
 
 // The status endpoint's cached server time: display and flags only, never a record (D-035). PunchService doesn't use it.
@@ -48,6 +50,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthentication();
+app.UseRateLimiter(); // after authentication: the punch limit is per employee
 app.UseAuthorization();
 app.MapControllers();
 

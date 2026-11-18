@@ -75,15 +75,31 @@ If no server is reachable, the integration tests are **skipped** locally (the re
 `CI=true` they **fail**. GitHub Actions starts a SQL Server 2022 container with a password generated in each
 run, so the integration tests run on every push (D-026).
 
+## Login (Phase 4)
+
+Sign up and log in with `POST /api/auth/signup` and `POST /api/auth/login` (body `{ username, displayName, password }` or
+`{ username, password }`). The answer sets a **JWT in an HTTP-only cookie** (`clockmanager_auth`, 8 hours, no refresh),
+so scripts in the browser can't read it. `POST /api/auth/logout` clears it and `GET /api/auth/me` says who you are.
+Signup always creates an **Employee**; the manager account exists only through the seed (D-049..D-053).
+
+- **Signing key:** set it once, it is never stored in git (Development makes a random one per run, so logins end when
+  the server restarts; any other environment refuses to start without it):
+
+      cd backend/ClockManager.Api
+      dotnet user-secrets set "Auth:SigningKey" "<at least 32 random characters>"
+
+- **Demo manager login (optional, Development only):** `dotnet user-secrets set "Seed:ManagerPassword" "<password>"`, then
+  log in as `manager`. The other seeded users (alice, bob, carol) have no password: create your own users with signup.
+- **Rate limits** (`RateLimits` section, D-054): 10 logins/signups per minute per IP and 60 punches per minute per user;
+  more gives 429 `request.rate_limited` with a `Retry-After` header.
+
 ## Punching (Phase 3)
 
 `POST /api/punches` clocks the caller in or out. The body is **only** the intent; the server takes the time from
 the trusted clock. Any other field (e.g. `"time"`) is rejected with 400 (`DECISIONS.md` D-029).
 
-Until login arrives in Phase 4, the caller is named by the **Development-only** header `X-Dev-Employee`
-(seeded users: `manager`, `alice`, `bob`, `carol`). In any other environment the header is ignored and every
-punch is a 401 (D-027). Each punch also needs an `Idempotency-Key` header with a new UUID. Swagger at
-http://localhost:5258/swagger shows both headers.
+You must be logged in (see Login below); without the cookie every punch is a 401. Each punch also needs an
+`Idempotency-Key` header with a new UUID. Swagger at http://localhost:5258/swagger shows the header.
 
 **Retrying a punch:** if the response is lost (or you double-click), send the **same** `Idempotency-Key` again. The
 server answers with the original result (same status and body, no second punch, no new time lookup), even if the shift
@@ -91,13 +107,14 @@ has been closed since (D-032). Only successful punches are remembered, so a retr
 attempt. The key belongs to one employee and one intent: reusing it for the other intent (a clock-out with a
 clock-in's key) is a 422 `idempotency.key_reused`. Use a new UUID for every new punch.
 
-    $headers = @{ 'X-Dev-Employee' = 'alice'; 'Idempotency-Key' = [guid]::NewGuid().ToString() }
-    Invoke-RestMethod -Method Post -Uri http://localhost:5258/api/punches -Headers $headers `
-        -ContentType 'application/json' -Body '{"intent":"clock-in"}'
+    # log in once (or sign up); the session cookie is kept in $s
+    $body = '{"username":"alice2","displayName":"Alice","password":"a-long-password"}'
+    Invoke-RestMethod -Method Post -Uri http://localhost:5258/api/auth/signup -SessionVariable s `
+        -ContentType 'application/json' -Body $body
 
-    # or with curl.exe (PowerShell 7.3+ passes the JSON quotes through as written)
-    curl.exe -i -X POST http://localhost:5258/api/punches -H "X-Dev-Employee: alice" `
-        -H "Idempotency-Key: $([guid]::NewGuid())" -H "Content-Type: application/json" -d '{"intent":"clock-out"}'
+    $headers = @{ 'Idempotency-Key' = [guid]::NewGuid().ToString() }
+    Invoke-RestMethod -Method Post -Uri http://localhost:5258/api/punches -WebSession $s -Headers $headers `
+        -ContentType 'application/json' -Body '{"intent":"clock-in"}'
 
 A 201 returns the shift: `workDate` (Zurich date of the clock-in), `clockIn` / `clockOut` with `utc`, `zurich`
 (with its offset), `provider`, `crossCheckedBy`, `lowPrecision`, `durationSeconds` (from the UTC instants) and
@@ -105,11 +122,11 @@ A 201 returns the shift: `workDate` (Zurich date of the clock-in), `clockIn` / `
 `shift.not_open`, 422 `idempotency.key_reused`, 503 `time.*` (no trusted time, or `time.went_backwards`), 400 `request.invalid` /
 `idempotency.key_missing`, 401 `auth.unauthenticated`, 403 `employee.inactive`.
 
-**Status:** `GET /api/me/status` (same `X-Dev-Employee` header, no `Idempotency-Key`) returns the caller's state for
+**Status:** `GET /api/me/status` (needs the login cookie, no `Idempotency-Key`) returns the caller's state for
 the UI: `employee`, `openShift` and `lastClosedShift` (same shape as a punch response, or `null`), `serverNow` and the
 top-level `flags`.
 
-    Invoke-RestMethod -Uri http://localhost:5258/api/me/status -Headers @{ 'X-Dev-Employee' = 'alice' } | ConvertTo-Json -Depth 6
+    Invoke-RestMethod -Uri http://localhost:5258/api/me/status -WebSession $s | ConvertTo-Json -Depth 6
 
 `serverNow` (`utc`, `zurich`, `source: "trusted-clock"`, `ageMs`) is the trusted time **for display only**: it is cached
 for up to 10 s (`ServerNow:CacheSeconds`, 1-30), so `utc` is the instant as it was fetched and `ageMs` says how old it is.

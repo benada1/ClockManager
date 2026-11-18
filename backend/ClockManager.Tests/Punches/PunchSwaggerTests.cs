@@ -27,7 +27,7 @@ public sealed class PunchSwaggerTests
         Assert.Contains(("Idempotency-Key", "header"), parameters);
         Assert.DoesNotContain(("X-Dev-Employee", "header"), parameters); // the dev header is gone
         Assert.Equal("cookieAuth", post.GetProperty("security")[0].EnumerateObject().Single().Name);
-        Assert.Equal(["201", "400", "401", "403", "409", "422", "503"], post.GetProperty("responses").EnumerateObject().Select(r => r.Name));
+        Assert.Equal(["201", "400", "401", "403", "409", "422", "429", "503"], post.GetProperty("responses").EnumerateObject().Select(r => r.Name));
 
         // The status endpoint documents 200 / 401 / 403 only (a time problem is never an error there).
         var get = doc.GetProperty("paths").GetProperty("/api/me/status").GetProperty("get");
