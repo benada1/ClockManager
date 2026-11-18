@@ -16,8 +16,8 @@ internal abstract class HttpTimeSource : ITimeSource
     internal const int MaxBodyBytes = 16 * 1024;
 
     /// <summary>Plausible UTC-year range for a punch, fixed in code: rule 1 forbids comparing with the server clock.</summary>
-    internal const int MinYear = 2026;
-    internal const int MaxYearExclusive = 2100;
+    internal const int MinYear = Application.Time.TrustedInstantRules.MinYear;
+    internal const int MaxYearExclusive = Application.Time.TrustedInstantRules.MaxYearExclusive;
 
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 

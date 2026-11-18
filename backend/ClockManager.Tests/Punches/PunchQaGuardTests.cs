@@ -102,21 +102,61 @@ public sealed class PunchQaGuardTests(MigratedDatabaseFixture database) : IClass
     /// real providers only give ms, so this is unreachable in production today (low); it shows what a future
     /// higher-resolution source would hit.
     /// </summary>
-    [SqlServerFact(Skip = "QA-21 open: a trusted instant < 1 tick (100 ns) after the clock-in passes the guard and Shift.Close (ns) but is stored equal to it, so CK_Shifts_ClockOutAfterClockIn throws: 500. Expected: 503 went_backwards. Unreachable with today's ms-resolution providers.")]
-    [Trait("Status", "KnownBug")]
-    public async Task Clock_out_less_than_one_database_tick_after_the_clock_in_is_not_a_500()
+    [SqlServerTheory]
+    [InlineData(1)]   // 1 ns
+    [InlineData(50)]  // half a tick
+    [InlineData(99)]  // one ns short of a tick
+    public async Task Clock_out_less_than_one_database_tick_after_the_clock_in_is_503_went_backwards_not_500(int nanos)
     {
         var clock = new FakeTrustedClock(Instant.FromUtc(2026, 1, 12, 7, 0, 0));
         await using var factory = new PunchApiFactory(database, clock);
         using var client = factory.CreateClient();
         var (employeeId, user) = await AddEmployeeAsync();
         await SendAsync(client, ClockIn, user);
-        clock.Set(Instant.FromUtc(2026, 1, 12, 7, 0, 0) + Duration.FromNanoseconds(50)); // half a tick
+        clock.Set(Instant.FromUtc(2026, 1, 12, 7, 0, 0) + Duration.FromNanoseconds(nanos));
 
         var reply = await SendAsync(client, ClockOut, user);
 
-        Assert.NotEqual(HttpStatusCode.InternalServerError, reply.Status);
-        Assert.Equal(1, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId, openOnly: reply.Status != HttpStatusCode.Created));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, reply.Status);
+        Assert.Equal(ErrorCodes.TimeWentBackwards, reply.Body.GetProperty("code").GetString());
+        Assert.Equal(1, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId, openOnly: true));
+    }
+
+    [SqlServerFact]
+    public async Task Clock_out_exactly_one_tick_after_the_clock_in_is_accepted_and_stored_strictly_later()
+    {
+        var start = Instant.FromUtc(2026, 1, 12, 7, 0, 0);
+        var clock = new FakeTrustedClock(start);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+        await SendAsync(client, ClockIn, user);
+        clock.Set(start + Duration.FromNanoseconds(100));
+
+        var reply = await SendAsync(client, ClockOut, user);
+
+        Assert.Equal(HttpStatusCode.Created, reply.Status);
+        var stored = await LoadShiftAsync(employeeId);
+        Assert.Equal(start, stored.ClockIn.Utc);
+        Assert.Equal(start + Duration.FromNanoseconds(100), stored.ClockOut!.Utc);
+        Assert.True(stored.ClockOut.Utc > stored.ClockIn.Utc);
+    }
+
+    [SqlServerFact]
+    public async Task A_sub_tick_instant_is_floored_and_the_stored_value_round_trips_equal()
+    {
+        var instant = Instant.FromUtc(2026, 1, 12, 7, 0, 0) + Duration.FromNanoseconds(1234567_89); // 0.123456789 s
+        var clock = new FakeTrustedClock(instant);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, ClockIn, user);
+
+        Assert.Equal(HttpStatusCode.Created, reply.Status);
+        var floored = Instant.FromUtc(2026, 1, 12, 7, 0, 0) + Duration.FromNanoseconds(1234567_00);
+        Assert.Equal(floored, (await LoadShiftAsync(employeeId)).ClockIn.Utc);
+        Assert.Equal("2026-01-12T07:00:00.1234567Z", reply.Body.GetProperty("clockIn").GetProperty("utc").GetString());
     }
 
     [SqlServerFact]
@@ -173,11 +213,10 @@ public sealed class PunchQaGuardTests(MigratedDatabaseFixture database) : IClass
     }
 
     /// <summary>Out-of-window instants must never reach the database as a 500 even if the clock layer let one through.</summary>
-    [SqlServerTheory(Skip = "QA-22 open: instants outside the DB/tzdb range (year 1, year 9999) from the clock reach EF/SQL and give a 500. Expected: 503. Unreachable today: the sources reject UTC years outside [2026, 2100).")]
-    [Trait("Status", "KnownBug")]
+    [SqlServerTheory]
     [InlineData("0001-01-01T00:00:00Z")]
     [InlineData("9999-12-31T23:59:59Z")]
-    public async Task An_absurd_instant_from_the_clock_is_never_a_500(string utc)
+    public async Task An_absurd_instant_from_the_clock_is_503_invalid_response_and_nothing_is_saved(string utc)
     {
         var clock = new FakeTrustedClock(utc);
         await using var factory = new PunchApiFactory(database, clock);
@@ -186,9 +225,39 @@ public sealed class PunchQaGuardTests(MigratedDatabaseFixture database) : IClass
 
         var reply = await SendAsync(client, ClockIn, user);
 
-        Assert.NotEqual(HttpStatusCode.InternalServerError, reply.Status);
-        if (reply.Status != HttpStatusCode.Created)
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, reply.Status);
+        Assert.Equal(ErrorCodes.TimeInvalidResponse, reply.Body.GetProperty("code").GetString());
+        Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+        Assert.DoesNotContain("0001", reply.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("9999", reply.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Exception", reply.Text, StringComparison.Ordinal);
+    }
+
+    [SqlServerTheory]
+    [InlineData("2026-01-01T00:00:00Z", true)]            // first instant inside
+    [InlineData("2025-12-31T23:59:59.9999999Z", false)]   // one tick before
+    [InlineData("2099-12-31T23:59:59.9999999Z", true)]    // last tick inside
+    [InlineData("2100-01-01T00:00:00Z", false)]           // first instant outside
+    public async Task The_plausible_window_boundaries_are_exact(string utc, bool accepted)
+    {
+        var clock = new FakeTrustedClock(utc);
+        await using var factory = new PunchApiFactory(database, clock);
+        using var client = factory.CreateClient();
+        var (employeeId, user) = await AddEmployeeAsync();
+
+        var reply = await SendAsync(client, ClockIn, user);
+
+        if (accepted)
+        {
+            Assert.Equal(HttpStatusCode.Created, reply.Status);
+            Assert.Equal(1, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId, openOnly: true));
+        }
+        else
+        {
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, reply.Status);
+            Assert.Equal(ErrorCodes.TimeInvalidResponse, reply.Body.GetProperty("code").GetString());
             Assert.Equal(0, await ShiftRows.CountShiftsAsync(database.ConnectionString, employeeId));
+        }
     }
 
     /// <summary>
@@ -248,6 +317,12 @@ public sealed class PunchQaGuardTests(MigratedDatabaseFixture database) : IClass
         db.Employees.Add(employee);
         await db.SaveChangesAsync();
         return (employee.Id, employee.Username);
+    }
+
+    private async Task<ClockManager.Api.Domain.Shift> LoadShiftAsync(int employeeId)
+    {
+        await using var db = database.CreateContext();
+        return await db.Shifts.AsNoTracking().SingleAsync(s => s.EmployeeId == employeeId);
     }
 
     private static async Task<Reply> SendAsync(HttpClient client, string body, string user)

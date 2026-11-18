@@ -157,3 +157,16 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
   400 factory turns it into `intent: "must appear only once"`. The real read still uses the strict wire type. The test is un-skipped
   and extended (same/different values, `Intent`, escaped name, three copies, duplicate unknown member) and was shown to fail without the fix.
   Note: `JsonException.Path` is read-only, the constructor with a path argument is the way to set it.
+
+## 2026-11-18 — the trusted instant was not normalized before the guard and the save (QA-21, QA-22)
+
+- **Asked:** Phase 3 step 2, the punch service with the monotonic guard (D-030).
+- **What went wrong:** Claude compared and saved the instant exactly as the clock returned it. NodaTime keeps nanoseconds, the
+  database keeps 100 ns ticks, so an instant less than one tick after the clock-in passed the guard but was stored equal and
+  `CK_Shifts_ClockOutAfterClockIn` gave a 500. The punch path also had no range check of its own: it trusted the sources to reject
+  odd years, so year 1 or 9999 from any other clock would reach EF/SQL as a 500.
+- **Found by:** the qa agent in Phase 3 (QA-21, QA-22), as two skipped known-bug tests. Both are unreachable with today's providers.
+- **Fix:** `TrustedInstantRules.Normalize` runs right after the clock call: it refuses an instant outside [2026, 2100) as 503
+  `time.invalid_response` (the window constant now lives there and the sources reuse it) and floors the instant to a tick; the
+  guard and the stamp use the floored value (D-042). Both tests are un-skipped and were shown to fail without the fix
+  (500 instead of 503); boundary and round-trip tests were added.

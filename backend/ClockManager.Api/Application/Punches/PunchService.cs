@@ -78,8 +78,8 @@ public sealed class PunchService(
         if (open is not null) throw PunchErrors.AlreadyOpen(ShiftViewMapper.ToView(open, rules.Value));
         var lastBefore = await LastPunchAsync(employee.Id, ct);
 
-        // 4. Trusted time (TrustedTimeException → 503). No transaction is open.
-        var trusted = await trustedClock.GetNowAsync(ct);
+        // 4. Trusted time (TrustedTimeException → 503). No transaction is open. Range-checked and floored to a DB tick (D-042).
+        var trusted = TrustedInstantRules.Normalize(await trustedClock.GetNowAsync(ct));
 
         // 5. Monotonic guard. A punch saved by another request during our call → 409 with the current open shift.
         await EnsureLaterThanLastPunchAsync(employee.Id, trusted, lastBefore, async () =>
@@ -123,8 +123,8 @@ public sealed class PunchService(
         var shift = await FindOpenShiftAsync(employee.Id, tracked: true, ct) ?? throw PunchErrors.NotOpen();
         var lastBefore = await LastPunchAsync(employee.Id, ct);
 
-        // 4. Trusted time. No transaction is open.
-        var trusted = await trustedClock.GetNowAsync(ct);
+        // 4. Trusted time. No transaction is open. Range-checked and floored to a DB tick (D-042).
+        var trusted = TrustedInstantRules.Normalize(await trustedClock.GetNowAsync(ct));
 
         // 5. Monotonic guard. Covers Shift.Close's "out after in" too, so Close can't throw for a backwards time.
         //    A punch saved by another request during our call (another tab closed the shift) → 409 not open.
