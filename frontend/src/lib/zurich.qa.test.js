@@ -1,7 +1,7 @@
 // QA (phase 8): display helpers around the clock changes, midnight and the year end (zurich-time-cases T1-T8).
 import { describe, expect, it } from 'vitest'
 import { formatDuration, needsOffset, zoneLabel, zurichDay, zurichOffsetLabel, zurichTime } from './zurich.js'
-import { formatElapsed, spokenElapsed } from '../pages/punch/useElapsed.js'
+import { formatElapsed, spokenElapsed } from '../pages/punch/elapsedText.js'
 
 describe('Zurich display of server instants', () => {
   it('T7: a punch exactly at the spring change is 03:00, never 02:00', () => {

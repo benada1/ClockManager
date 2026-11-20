@@ -400,7 +400,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** `AuthProvider` asks `GET /api/auth/me` on load. The login is an HTTP-only cookie, so JavaScript never touches a token. Any 401 `auth.unauthenticated` goes through one hook in the API client and sends the user to login.
 - **Trade-offs:** An expired session is noticed only on the next request or refresh.
 
-### D-047 — Punch screen: key per attempt, retry with the same key, no clock (the elapsed-time part amended by D-058)
+### D-047 — Punch screen: key per attempt, retry with the same key, no clock (the elapsed-time part amended by D-058, the no-clock part by D-084)
 - **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend / UX
 - **Decision:** A new `Idempotency-Key` per attempt, kept only after errors where the result is unknown (503, 429, network, 5xx) so "Try again" can't punch twice. No live clock or timer anywhere (user's choice): a time is shown only after a punch or from a saved shift, always from the server's string, formatted in Europe/Zurich and labeled "Zurich time". The offset is added on DST days. A forgotten shift is a notice, never closed by the UI.
 - **Trade-offs:** No elapsed time while clocked in. `serverNow` from the status endpoint is not used.
@@ -456,12 +456,12 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Why:** A demo login without a password in git (rule 3).
 
 ### D-057 — The punch screen is two big switch blocks
-- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend · **Amends:** D-045..D-048 (layout only)
+- **Date:** 2026-11-18 · **Status:** Superseded by D-085 · **Area:** frontend · **Amends:** D-045..D-048 (layout only)
 - **Decision:** Clock out (left) and Clock in (right) are two large rounded blocks from the user's sketch (`docs/design/punch-screen-sketch.png`). The active one is accent-coloured with a real button; the other is grey, dashed and disabled, with the visible reason ("Not available: you are clocked in"). On phones they stack with the active block first.
 - **Why:** The app has very few features, so the screen can be simple and large. State never depends on colour alone.
 
 ### D-058 — Elapsed time on the punch screen (amends D-047)
-- **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend · **Amends:** D-047 ("no elapsed time")
+- **Date:** 2026-11-18 · **Status:** Accepted, extended by D-084 · **Area:** frontend · **Amends:** D-047 ("no elapsed time")
 - **Decision:** While clocked in, the block shows "Clocked in for H:MM:SS", counted as `(serverNow − clockIn) + ageMs + (performance.now() − syncAt)`. It uses server times plus a monotonic stopwatch, never the browser's wall clock, and is labeled as server time. With no `serverNow` there is no counter, only "Since 08:03 (Zurich time)".
 - **Trade-offs:** `performance.now()` may pause while the computer sleeps; the next focus refresh re-syncs it. The ticking counter is hidden from screen readers; a spoken text changes about once a minute.
 
@@ -601,6 +601,22 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Decision:** (c).
 - **Why:** (a) sends every visitor's IP to a third party and fails offline; (b) adds a dependency and ~100 KB for a small look difference. On the Windows PCs this runs on, Segoe UI is very close.
 - **Trade-offs:** The app looks slightly different from the mockup where Inter is not installed.
+
+### D-084 — A live Zurich clock on the Clock page, from server time only (amends D-047, extends D-058)
+- **Date:** 2026-11-20 · **Status:** Accepted · **Area:** frontend / UX · **Amends:** D-047 ("no live clock", the user's earlier choice, changed by the redesign mockups)
+- **Context:** The mockup shows a big HH:MM:SS clock, a "Good afternoon" greeting and the full date. CLAUDE.md rule 1 forbids the device clock.
+- **Options:** (a) the browser clock, labelled · (b) a new status request every second · (c) the D-058 method for "now": `serverNow.utc + ageMs` at the moment the status arrived, plus `performance.now()` since then.
+- **Decision:** (c), in `lib/serverClock.js` (pure, tested) and `useServerClock.js` (the only `performance.now()` line, marked `clock-ok: display only, re-synced from server`). The status is re-fetched once a minute while the tab is visible, on focus and after every punch. A punch clears `serverNow` but keeps the sync time, so the last anchor stays until the refresh (no flicker); a new sync without `serverNow` (providers down) removes the clock, the greeting becomes "Hello, name" and the card says "Server time unavailable". Elapsed time while clocked in uses the same anchor. The label reads "Zurich time · from the server", with the offset on the two DST days. The date and the greeting hour come from `Intl` in Europe/Zurich.
+- **Why:** (a) breaks rule 1; (b) would hit the time providers' cache endlessly. (c) is exact to the status cache age and never shows a device time.
+- **Trade-offs:** Between syncs the clock drifts with the PC's monotonic timer (well under a second per minute, corrected each minute); if the PC sleeps, the next focus re-syncs it. One extra status request per minute per open tab. The ticking digits are hidden from screen readers; they get the minute.
+- **Refs:** plans/10-ui-redesign.md §4 · `serverClock.test.js` (T6, T7, T8, anchor kept after a punch, cleared on a sync without time)
+
+### D-085 — One clock card with one button replaces the two switch blocks (supersedes D-057)
+- **Date:** 2026-11-20 · **Status:** Accepted · **Area:** frontend / UX
+- **Decision:** The Clock page follows the mockup: a status pill ("On shift" / "Not clocked in"), the server clock, one line saying what happened ("Shift started at 08:03 · running for 2:38:12", "Clocked out and saved"), and one full-width button ("Clock in" in the accent colour, "Clock out" inverted). Punch errors and "Try again" appear inside the card, just above the button. The right column shows "Last shift" (from the status) and "This week" (`GET /api/me/shifts` for the Monday–Sunday week of the server's Zurich date by string arithmetic, `weekOf`; without a server date the server's default week, labelled "Latest week"). The bar chart is plain divs with one spoken summary (`role="img"`).
+- **Why:** The user's new design. One button that changes its words is simpler than two blocks, one of them always disabled, and the same button element keeps focus across the change.
+- **Trade-offs:** The disabled block's explanation ("Not available: you are clocked in") is gone because nothing is disabled to explain. Week totals count closed shifts only, as on History (D-063).
+- **Refs:** plans/10-ui-redesign.md · `views.test.js` (`weekOf`, `weekDays`, `shiftTimeParts`)
 
 ## Edge cases
 
@@ -752,6 +768,10 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Cross-site POST (text, form, multipart, XML) with a valid cookie | 415 and nothing changes; no CORS headers anywhere | `AuthQaBrowserTests` |
 | Swagger and the time lab outside Development | 404 | `AuthQaHostTests` |
 | Seed in Production or Staging, or a blank `Seed:ManagerPassword` | Nothing created / nobody gets a hash | `AuthQaSeedTests` |
+| Clock page while the time providers are down (`serverNow: null`) | No clock and no time-of-day greeting; "Server time unavailable"; punching still allowed, the server decides (D-084) | `serverClock.test.js` (cleared on a sync without time) |
+| Clock page right after a punch (`serverNow` cleared until the refresh) | The last server anchor is kept, so the clock does not blink (D-084) | `serverClock.test.js` (kept after a punch) |
+| Clock page on a DST night (T6/T7) | Clock shows the offset ("UTC+1" / "UTC+2"); 03:00 at the March jump, never 02:00 | `serverClock.test.js` T6, T7 |
+| "This week" around New Year (T8) | Monday–Sunday by date strings: 28 Dec – 3 Jan | `views.test.js` `weekOf` |
 
 ## Not done (out of scope)
 

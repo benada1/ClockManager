@@ -1,11 +1,23 @@
-import { formatDuration, needsOffset, zurichOffsetLabel, zurichTime } from '../../lib/zurich.js'
+import { formatDuration, needsOffset, zurichDay, zurichOffsetLabel, zurichTime } from '../../lib/zurich.js'
 
 /** Week and day totals always read "9 h 09 min" (also "0 h 00 min"), counted from closed shifts. */
 export function formatTotal(seconds) {
-  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return '0 h 00 min'
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  return `${h} h ${String(m).padStart(2, '0')} min`
+  const { h, m } = totalParts(seconds)
+  return `${h} h ${m} min`
+}
+
+/** The numbers of a total for the big display: 157740 -> { h: '43', m: '49' }. */
+export function totalParts(seconds) {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return { h: '0', m: '00' }
+  return { h: String(Math.floor(seconds / 3600)), m: String(Math.floor((seconds % 3600) / 60)).padStart(2, '0') }
+}
+
+/** '7 shifts · 6 flagged' for a loaded week (flagged = has a server flag). */
+export function weekCountsText(data) {
+  const shifts = (data?.days ?? []).flatMap((d) => d.shifts ?? [])
+  const flagged = shifts.filter((s) => (s.flags ?? []).length > 0).length
+  const count = `${shifts.length} ${shifts.length === 1 ? 'shift' : 'shifts'}`
+  return flagged ? `${count} · ${flagged} flagged` : count
 }
 
 /** Plain-words notes for a day. Unknown notes are ignored. */
@@ -42,7 +54,7 @@ export function shiftBadges(shift, { manager = false } = {}) {
   if (shift.endsNextDay) badges.push({ key: 'next', tone: 'info', text: 'Ends next day' })
   if (shift.corrected) badges.push({ key: 'corrected', tone: 'info', text: manager ? 'Corrected' : 'Corrected by a manager' })
   for (const flag of shift.flags ?? []) {
-    if (texts[flag]) badges.push({ key: flag, tone: 'warning', text: texts[flag] })
+    if (texts[flag]) badges.push({ key: flag, tone: flag === 'forgotten_clock_out' ? 'danger' : 'warning', text: texts[flag] })
   }
   return badges
 }
@@ -51,4 +63,21 @@ export function shiftBadges(shift, { manager = false } = {}) {
 export function shiftDurationText(shift, { manager = false } = {}) {
   if (shift.open) return manager ? 'Not counted while open' : 'Not counted until you clock out'
   return formatDuration(shift.durationSeconds) ?? ''
+}
+
+/**
+ * Parts for the '08:03 → 17:12 Fri' row: start, end (null while open) and the clock-out weekday when it is on a later
+ * Zurich day. Around a clock change each time carries its offset.
+ */
+export function shiftTimeParts(shift) {
+  const inIso = shift.clockIn?.zurich
+  const outIso = shift.clockOut?.zurich ?? null
+  const withOffset = needsOffset(inIso, outIso)
+  const one = (iso) => {
+    const t = zurichTime(iso)
+    if (!t) return '–'
+    return withOffset && zurichOffsetLabel(iso) ? `${t} ${zurichOffsetLabel(iso)}` : t
+  }
+  const outDay = outIso ? zurichDay(outIso) : null
+  return { start: one(inIso), end: outIso ? one(outIso) : null, endDay: outDay && outDay !== zurichDay(inIso) ? outDay.split(' ')[0] : null }
 }

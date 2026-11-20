@@ -8,10 +8,10 @@ export default function Card({ as: Tag = 'section', className = '', children, ..
 }
 
 /** Small grey card title with an optional muted note on the right ("Last shift · Fri 20 Nov"). */
-export function CardTitle({ as: Tag = 'h2', note, children }) {
+export function CardTitle({ as: Tag = 'h2', id, note, children }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <Tag className="text-sm font-semibold text-ink-3">{children}</Tag>
+      <Tag id={id} className="text-sm font-semibold text-ink-3">{children}</Tag>
       {note && <span className="text-right text-sm text-muted">{note}</span>}
     </div>
   )

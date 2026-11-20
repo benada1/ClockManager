@@ -23,7 +23,9 @@ export default function usePunch() {
     document.addEventListener('visibilitychange', again)
     window.addEventListener('focus', again)
     window.addEventListener('online', again)
+    const resync = setInterval(again, 60000) // re-sync the shown server clock once a minute (D-084)
     return () => {
+      clearInterval(resync)
       document.removeEventListener('visibilitychange', again)
       window.removeEventListener('focus', again)
       window.removeEventListener('online', again)

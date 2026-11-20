@@ -42,3 +42,32 @@ export function formatDayHeading(date) {
   const weekday = WEEKDAYS[new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay()]
   return `${weekday} ${dayMonth(p)}`
 }
+
+const weekdayIndex = (p) => new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay() // 0 = Sunday; a given date, not the clock
+
+/** The Monday-to-Sunday week that holds a Zurich date: '2026-12-31' -> { from: '2026-12-28', to: '2027-01-03' }. */
+export function weekOf(date) {
+  const p = parts(date)
+  if (!p) return null
+  const from = addDays(date, -((weekdayIndex(p) + 6) % 7))
+  return { from, to: addDays(from, 6) }
+}
+
+/** Seven days of a loaded week, Monday first, with each day's counted seconds (0 when no shift). */
+export function weekDays(data) {
+  if (!parts(data?.from)) return []
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(data.from, i)
+    const day = (data.days ?? []).find((d) => d.date === date)
+    const name = WEEKDAYS[weekdayIndex(parts(date))]
+    return { date, name, short: name.slice(0, 3), letter: name[0], seconds: day?.totalSeconds ?? 0, shifts: day?.shifts?.length ?? 0 }
+  })
+}
+
+/** '16 – 22 Nov', '30 Nov – 6 Dec' or '28 Dec – 3 Jan' (short form for the small week card). */
+export function formatShortRange(from, to) {
+  const a = parts(from)
+  const b = parts(to)
+  if (!a || !b) return ''
+  return a.m === b.m && a.y === b.y ? `${a.d} – ${dayMonth(b)}` : `${dayMonth(a)} – ${dayMonth(b)}`
+}
