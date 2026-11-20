@@ -1,4 +1,4 @@
-import Card from '../components/Card.jsx'
+import EmptyState from '../components/EmptyState.jsx'
 import { href } from '../router.js'
 import useHistory from './history/useHistory.js'
 import WeekView from './history/WeekView.jsx'
@@ -7,22 +7,29 @@ export default function History() {
   const history = useHistory()
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <h1 tabIndex={-1} className="text-2xl font-semibold">
-        History
-      </h1>
-
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <WeekView
         history={history}
         loadingText="Loading your shifts…"
+        header={
+          <div className="flex flex-col gap-1">
+            <h1 tabIndex={-1} className="text-3xl font-semibold tracking-tight">
+              History
+            </h1>
+            <p className="text-base text-muted">Your shifts, week by week.</p>
+          </div>
+        }
         empty={
-          <Card className="flex flex-col items-start gap-3">
-            <p className="text-lg font-medium">You have no shifts yet.</p>
-            <p className="text-muted">Clock in and your shifts will show up here.</p>
-            <a className="font-medium text-accent underline" href={href('/')}>
-              Go to the clock
-            </a>
-          </Card>
+          <EmptyState
+            title="No shifts yet"
+            action={
+              <a className="inline-flex min-h-11 items-center text-sm font-semibold text-accent-ink no-underline hover:underline" href={href('/')}>
+                Go to the clock
+              </a>
+            }
+          >
+            Clock in and your shifts will show up here.
+          </EmptyState>
         }
       />
 
