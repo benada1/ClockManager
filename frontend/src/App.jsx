@@ -36,11 +36,12 @@ function managerPage(path) {
 
 function NotFound() {
   return (
-    <div className="flex flex-col gap-3">
-      <h1 tabIndex={-1} className="text-xl font-semibold">
+    <div className="mx-auto my-auto flex max-w-md flex-col items-center gap-3 text-center">
+      <h1 tabIndex={-1} className="text-3xl font-semibold tracking-tight">
         Page not found
       </h1>
-      <a className="font-medium text-accent underline" href={href('/')}>
+      <p className="text-base text-muted">This address does not lead anywhere in Clock Manager.</p>
+      <a className="font-semibold text-accent-ink no-underline hover:underline" href={href('/')}>
         Go to the start page
       </a>
     </div>
@@ -101,7 +102,7 @@ function App() {
   if (phase === 'loading') content = <Loading>Loading…</Loading>
   else if (phase === 'unreachable')
     content = (
-      <div className="mx-auto max-w-md">
+      <div className="mx-auto my-auto w-full max-w-md">
         <Banner
           tone="error"
           title="You are offline or the server is down."

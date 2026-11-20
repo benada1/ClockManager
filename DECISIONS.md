@@ -586,6 +586,22 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Date:** 2026-11-18 · **Status:** Accepted · **Area:** backend
 - **Decision:** A valid token whose employee is missing gets 401 `auth.unauthenticated` on `/api/manager/*` (as on `/api/me/*`); inactive or non-manager employees stay 403. A stored password hash that is not valid base64 counts as a failed login (401, same timing), never a 500 (QA-45, QA-43).
 
+### D-082 — Light and dark theme from one set of tokens; light is the default
+- **Date:** 2026-11-20 · **Status:** Accepted · **Area:** frontend / UX · **Amends:** D-045 (token values)
+- **Context:** The redesign mockups are dark and their demo follows `prefers-color-scheme`; the user asked for light on a first visit.
+- **Options:** default: (a) follow the system setting · (b) always light until the user switches. Tokens: (c) `dark:` classes on every element · (d) one `@theme` (light) plus a `:root[data-theme='dark']` block that overrides the same `--color-*` variables.
+- **Decision:** (b) + (d). The sun/moon button in the top bar (also on the log-in pages) sets `data-theme` on `<html>` and stores `cm-theme` in `localStorage` (try/catch; anything but `dark` means light). A 3-line inline script in `index.html` applies it before the first paint. The default Tailwind palette is switched off (`--color-*: initial`) so only tokens can be used. The toggle's label says what a press does ("Switch to dark mode"); no `aria-pressed`, because a label that changes plus a pressed state would be announced twice.
+- **Why:** (a) was explicitly not wanted. (d) keeps components theme-free and the two palettes side by side in one file; (c) doubles every colour class.
+- **Trade-offs:** No "follow the system" option. Two mockup values fail WCAG and were replaced: text-input borders (`#D0D5DD`, 1.4:1) use `#868E9C` light / `#5F6B80` dark (≥ 3:1), and the "faint" grey is used only for dots and arrows, never for text (the clock's seconds use the muted grey).
+- **Refs:** plans/10-ui-redesign.md §3 · `src/app.css` · `src/lib/theme.js` · `theme.test.js`
+
+### D-083 — No web font download: Inter if installed, else the system font
+- **Date:** 2026-11-20 · **Status:** Accepted · **Area:** frontend
+- **Options:** (a) the mockup's Google Fonts link · (b) bundle Inter as a package · (c) font stack `Inter, Segoe UI Variable, Segoe UI, system-ui`.
+- **Decision:** (c).
+- **Why:** (a) sends every visitor's IP to a third party and fails offline; (b) adds a dependency and ~100 KB for a small look difference. On the Windows PCs this runs on, Segoe UI is very close.
+- **Trade-offs:** The app looks slightly different from the mockup where Inter is not installed.
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |

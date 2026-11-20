@@ -5,38 +5,111 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 @import './index.css' layer(legacy);
 
+/* Light palette = the default (D-082). Values from the design source (.cm). */
 @theme {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --color-*: initial;
+  --font-sans: Inter, 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
 
-  --color-canvas: #f6f8fa;
+  --color-canvas: #f5f6f8;
   --color-surface: #ffffff;
-  --color-ink: #1f2328;
-  --color-muted: #57606a; /* 6.4:1 on white */
-  --color-line: #d0d7de;
-  --color-line-strong: #6e7781; /* input borders, 4.5:1 on white */
-  --color-accent: #0b57d0;
-  --color-accent-strong: #0842a0;
-  --color-accent-soft: #e8f0fe;
-  --color-ok: #1a5e20;
-  --color-ok-soft: #e7f4e8;
-  --color-ok-line: #2e7d32;
-  --color-danger: #a4161a;
-  --color-danger-soft: #fdecec;
-  --color-danger-line: #c62828;
-  --color-warn: #6b4400;
-  --color-warn-soft: #fff3d6;
-  --color-warn-line: #b26a00;
+  --color-subtle: #f2f4f7;
+  --color-hover: #e9ecf1;
+  --color-line: #e4e7ec;
+  --color-control: #d0d5dd; /* button and chip borders (text carries the meaning) */
+  --color-line-strong: #868e9c; /* text-input borders: 3.3:1, the mockup's #d0d5dd is 1.4:1 */
+  --color-ink: #101828;
+  --color-ink-2: #344054;
+  --color-ink-3: #475467;
+  --color-muted: #5d6679;
+  --color-faint: #98a2b3; /* decoration only (dots, arrows), never text */
+  --color-accent: #2952e3;
+  --color-accent-strong: #2142b8;
+  --color-accent-soft: #eef2ff;
+  --color-accent-ink: #2142b8;
+  --color-on-accent: #ffffff;
+  --color-strong: #101828;
+  --color-on-strong: #ffffff;
+  --color-input: #ffffff;
+  --color-ring: rgb(41 82 227 / 0.18);
+  --color-ok: #067647;
+  --color-ok-soft: #ecfdf3;
+  --color-ok-dot: #17b26a;
+  --color-ok-line: #abefc6;
+  --color-warn: #93370d;
+  --color-warn-soft: #fef0c7;
+  --color-warn-line: #fedf89;
+  --color-danger: #b42318;
+  --color-danger-soft: #fee4e2;
+  --color-danger-line: #fecdca;
+  --color-bar-empty: #e4e7ec;
+  --color-backdrop: rgb(16 24 40 / 0.5);
 
-  --radius-ui: 0.5rem;
-  --radius-block: 1.5rem; /* the two big punch blocks and their button */
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-cta: 0 8px 24px rgb(41 82 227 / 0.3);
+
+  --radius-control: 0.625rem; /* buttons, nav pills */
+  --radius-field: 0.75rem; /* inputs, auth buttons */
+  --radius-cta: 1rem; /* the punch button */
+  --radius-card: 1.25rem;
+  --radius-ui: 0.75rem; /* old name, removed in the last step */
+  --radius-block: 1.25rem; /* old name, removed in the last step */
+}
+
+/* Dark palette (.cm.dark of the design source): same variables, other values. */
+@layer theme {
+  :root[data-theme='dark'] {
+    --color-canvas: #0b0f17;
+    --color-surface: #121826;
+    --color-subtle: #1a2232;
+    --color-hover: #222b3d;
+    --color-line: #232b3b;
+    --color-control: #2e3850;
+    --color-line-strong: #5f6b80; /* 3.2:1 on the input background */
+    --color-ink: #f2f4f7;
+    --color-ink-2: #cdd3de;
+    --color-ink-3: #a3acba;
+    --color-muted: #8c96a8;
+    --color-faint: #667085;
+    --color-accent: #3d63f0;
+    --color-accent-strong: #3357e0;
+    --color-accent-soft: #1b2550;
+    --color-accent-ink: #a3b6ff;
+    --color-on-accent: #ffffff;
+    --color-strong: #f2f4f7;
+    --color-on-strong: #101828;
+    --color-input: #0f1522;
+    --color-ring: rgb(91 127 255 / 0.3);
+    --color-ok: #5bd69a;
+    --color-ok-soft: #0e2a1f;
+    --color-ok-dot: #2ed583;
+    --color-ok-line: #1d4b36;
+    --color-warn: #f5c26b;
+    --color-warn-soft: #3a2a0a;
+    --color-warn-line: #5c4512;
+    --color-danger: #fda29b;
+    --color-danger-soft: #3b1514;
+    --color-danger-line: #5f2420;
+    --color-bar-empty: #2a3345;
+    --color-backdrop: rgb(0 0 0 / 0.6);
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-cta: 0 8px 24px rgb(0 0 0 / 0.35);
+    color-scheme: dark;
+  }
+  :root {
+    color-scheme: light;
+  }
 }
 
 /* Small base for the new screens (what preflight would have done). */
 @layer base {
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+  }
   .ui, .ui * {
     box-sizing: border-box;
   }
-  .ui h1, .ui h2, .ui h3, .ui p, .ui dl, .ui dd {
+  .ui h1, .ui h2, .ui h3, .ui p, .ui dl, .ui dd, .ui ul, .ui ol {
     margin: 0;
   }
   .ui fieldset {
@@ -48,9 +121,15 @@
   .ui button, .ui input, .ui textarea {
     font: inherit;
   }
+  .ui a {
+    color: inherit;
+  }
   .ui :focus-visible {
-    outline: 3px solid var(--color-accent);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+  }
+  .ui h1:focus {
+    outline: none; /* programmatic focus target after navigation */
   }
 }
 

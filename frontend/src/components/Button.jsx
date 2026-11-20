@@ -1,13 +1,15 @@
 const VARIANTS = {
-  primary: 'bg-accent text-white border-accent hover:bg-accent-strong hover:border-accent-strong',
-  secondary: 'bg-surface text-ink border-line-strong hover:bg-canvas',
-  quiet: 'bg-transparent text-accent border-transparent hover:bg-accent-soft',
-  onAccent: 'bg-surface text-accent-strong border-surface hover:bg-accent-soft hover:border-accent-soft focus-visible:outline-white', // sits on an accent block
+  primary: 'bg-accent text-on-accent border-accent hover:bg-accent-strong hover:border-accent-strong',
+  secondary: 'bg-surface text-ink-2 border-control hover:bg-subtle',
+  strong: 'bg-strong text-on-strong border-strong hover:opacity-90',
+  quiet: 'bg-transparent text-accent-ink border-transparent hover:bg-accent-soft',
+  onAccent: 'bg-surface text-accent-ink border-surface hover:bg-accent-soft', // old punch blocks, removed with them
 }
 const SIZES = {
-  md: 'min-h-11 px-5 text-base rounded-ui',
-  lg: 'min-h-16 px-6 text-xl font-semibold rounded-ui',
-  xl: 'min-h-20 px-8 text-2xl font-semibold rounded-block',
+  md: 'min-h-11 px-4 text-sm rounded-control',
+  lg: 'min-h-12 px-5 text-base font-semibold rounded-field',
+  xl: 'min-h-16 px-6 text-lg font-semibold rounded-cta',
+  icon: 'size-11 rounded-control',
 }
 
 /** The one button for the whole app. `busy` disables it and shows `busyLabel`. */
@@ -28,7 +30,7 @@ export default function Button({
       type={type}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      className={`inline-flex items-center justify-center gap-2 border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTS[variant]} ${SIZES[size]} ${block ? 'w-full' : ''} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 border font-medium transition-[background-color,box-shadow,opacity] disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTS[variant]} ${SIZES[size]} ${block ? 'w-full' : ''} ${className}`}
       {...rest}
     >
       {busy && (
@@ -36,5 +38,17 @@ export default function Button({
       )}
       {busy && busyLabel ? busyLabel : children}
     </button>
+  )
+}
+
+/** A link that looks like the secondary button (Review, Open week). */
+export function LinkButton({ className = '', children, ...rest }) {
+  return (
+    <a
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-control bg-surface px-4 text-sm font-medium whitespace-nowrap text-ink-2 no-underline transition-colors hover:bg-subtle ${className}`}
+      {...rest}
+    >
+      {children}
+    </a>
   )
 }

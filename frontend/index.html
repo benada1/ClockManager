@@ -1,10 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Clock Manager</title>
+    <script>
+      // Theme before the first paint (same rule as src/lib/theme.js): light unless "dark" was chosen.
+      try { document.documentElement.dataset.theme = localStorage.getItem('cm-theme') === 'dark' ? 'dark' : 'light' } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
