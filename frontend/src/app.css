@@ -1,9 +1,4 @@
-/* Layer order: legacy time-lab CSS sits below Tailwind utilities, so utilities always win.
-   Tailwind's reset (preflight) is left out on purpose: it would restyle the time lab page. */
-@layer theme, base, legacy, components, utilities;
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
-@import './index.css' layer(legacy);
+@import 'tailwindcss';
 
 /* Light palette = the default (D-082). Values from the design source (.cm). */
 @theme {
@@ -51,8 +46,6 @@
   --radius-field: 0.75rem; /* inputs, auth buttons */
   --radius-cta: 1rem; /* the punch button */
   --radius-card: 1.25rem;
-  --radius-ui: 0.75rem; /* old name, removed in the last step */
-  --radius-block: 1.25rem; /* old name, removed in the last step */
 }
 
 /* Dark palette (.cm.dark of the design source): same variables, other values. */
@@ -100,42 +93,25 @@
   }
 }
 
-/* Small base for the new screens (what preflight would have done). */
 @layer base {
   body {
-    margin: 0;
     background: var(--color-canvas);
   }
-  .ui, .ui * {
-    box-sizing: border-box;
-  }
-  .ui h1, .ui h2, .ui h3, .ui p, .ui dl, .ui dd, .ui ul, .ui ol {
-    margin: 0;
-  }
-  .ui fieldset {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    min-width: 0;
-  }
-  .ui button, .ui input, .ui textarea {
-    font: inherit;
-  }
-  .ui a {
-    color: inherit;
-  }
-  .ui :focus-visible {
+  :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
-  .ui h1:focus {
+  h1[tabindex='-1']:focus {
     outline: none; /* programmatic focus target after navigation */
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ui * {
+  *,
+  ::before,
+  ::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

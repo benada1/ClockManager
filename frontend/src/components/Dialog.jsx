@@ -26,7 +26,7 @@ export default function Dialog({ title, description, onClose, locked = false, ch
         e.preventDefault() // React decides when it closes
         if (!locked) onClose()
       }}
-      className="ui m-auto w-[calc(100%-2rem)] max-w-xl rounded-card border border-line bg-surface p-0 font-sans text-ink shadow-card backdrop:bg-backdrop"
+      className="m-auto w-[calc(100%-2rem)] max-w-xl rounded-card border border-line bg-surface p-0 font-sans text-ink shadow-card backdrop:bg-backdrop"
     >
       <div className="flex max-h-[90vh] flex-col gap-6 overflow-y-auto p-6 sm:p-8">
         <div className="flex flex-col gap-1">

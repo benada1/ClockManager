@@ -1,6 +1,6 @@
 # 05 — Frontend: sign up, log in and punch
 
-**Status:** Done 2026-11-18 · Screens as two switch blocks (D-057), elapsed counter (D-058), success-only rule and tests (D-059, D-060) · Still to do by hand: look at it in a browser (see the README list)
+**Status:** Done 2026-11-18 · Screens as two switch blocks (D-057, replaced by one clock card in plan 10, D-085), elapsed counter (D-058), success-only rule and tests (D-059, D-060) · Still to do by hand: look at it in a browser (see the README list)
 **Refs:** master plan §4 "UI misinformation risks" · CLAUDE.md §5 (frontend) and rule 1 · API contract: plan 04 §3, plus the Phase 3 endpoints
 
 ## 1. Goal

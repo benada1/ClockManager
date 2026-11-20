@@ -8,11 +8,14 @@ const TITLE = { error: 'text-danger', warning: 'text-warn', success: 'text-ok', 
 // A word as well as a color, so the tone never rests on color alone.
 const LABELS = { error: 'Problem', warning: 'Notice', success: 'Done', info: 'Info' }
 
-/** Calm inline message. Errors are announced at once (alert), the rest politely (status). */
-export default function Banner({ tone = 'info', title, children, action, className = '' }) {
+/**
+ * Calm inline message. Errors are announced at once (alert), the rest politely (status).
+ * `announce={false}` when a live line elsewhere already says it.
+ */
+export default function Banner({ tone = 'info', title, children, action, announce = true, className = '' }) {
   return (
     <div
-      role={tone === 'error' ? 'alert' : 'status'}
+      role={announce ? (tone === 'error' ? 'alert' : 'status') : undefined}
       className={`flex flex-col gap-3 rounded-field border px-4 py-3.5 text-sm ${TONES[tone]} ${className}`}
     >
       <div className="flex flex-col gap-1">

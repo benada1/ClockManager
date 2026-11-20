@@ -1,6 +1,6 @@
 # 10 — UI redesign and light/dark theme
 
-**Status:** In progress 2026-11-20 · approved by the user in chat (the mockups are the brief)
+**Status:** Done 2026-11-20 · approved by the user in chat (the mockups are the brief) · 6 steps, 6 commits, gate green (see §8) · still to do by hand: look at it in a browser, both themes
 **Refs:** user mockups (7 screenshots + the design source `Login/Main/History/Team/Employee.dc.html`) · CLAUDE.md §1 rule 1, §5 frontend · D-045, D-047, D-057, D-058
 
 ## 1. Goal
@@ -48,7 +48,7 @@ first visit; a sun/moon button switches it and the choice is remembered. Nothing
 
 ## 6. Risks
 - Breaking behaviour while moving markup: logic modules stay untouched; only view files change. New logic goes into small pure
-  functions with tests (`serverClock.js`, `weekBars`, `shiftTimeParts`, theme storage).
+  functions with tests (`serverClock.js`, `weekOf`/`weekDays`, `shiftTimeParts`, theme storage).
 - Mockup data the API does not have (per-person weekly hours on the Team page, "Show all"): left out, recorded.
 - Preflight could restyle something unexpectedly: imported only in the last step, after the Time lab no longer needs its own CSS.
 
@@ -59,3 +59,10 @@ first visit; a sun/moon button switches it and the choice is remembered. Nothing
 - `verify -Scope frontend` after each step, full `verify` at the end.
 - By hand in `npm run dev:mock`: fresh, open, closed, forgotten, notime, unavailable, offline, history, historyempty,
   manager, managerstale, both themes, narrow window.
+
+## 8. Progress log
+**Done 2026-11-20.** Steps 1-6 committed one by one, `verify -Scope frontend` green after each.
+- New tests: `theme.test.js`, `serverClock.test.js`, `views.test.js`, `views.smoke.test.jsx` (server-side render of the main views).
+- Decisions: D-082 (theme, light default, contrast fixes), D-083 (no web font), D-084 (live server clock), D-085 (one clock card), D-086 (Team page); D-057 superseded, D-045/D-047/D-058 notes updated; four edge-case rows; "Not done" lists the mockup parts the API has no data for.
+- Checked: production build, oxlint, Vitest, clock guard, the built CSS has the dark block and the used utilities, `npm run dev:mock` serves the page and the mock API.
+- **Not checked:** the screens were not opened in a browser by the author (no browser tool in this session). The README manual list covers it, plus: both themes, a narrow window, `?mock=notime`, `?mock=open`, `?mock=manager`.

@@ -1,4 +1,7 @@
+import Card from '../../components/Card.jsx'
+import Pill from '../../components/Pill.jsx'
 import { formatMs, formatUtcInstant } from '../../lib/serverTime.js'
+import { Code, Fact, Facts, PanelHeader } from './Facts.jsx'
 import RawPayload from './RawPayload.jsx'
 import ZurichTime from './ZurichTime.jsx'
 
@@ -21,44 +24,37 @@ function ProviderCard({ provider }) {
   const headingId = `provider-${role ?? name}`
 
   return (
-    <article className={`card provider ${ok ? 'is-ok' : 'is-failed'}`} aria-labelledby={headingId}>
-      <header className="card__header">
-        <h3 id={headingId}>
-          <span className="eyebrow">{ROLE_LABELS[role] ?? role ?? 'Provider'}</span>
-          {name}
-        </h3>
-        <span className={`badge ${ok ? 'badge--ok' : 'badge--error'}`}>
-          {label}
-          {!ok && outcome ? <code className="badge__code">{outcome}</code> : null}
-        </span>
-      </header>
+    <Card as="article" aria-labelledby={headingId} className="flex flex-col gap-4">
+      <PanelHeader
+        id={headingId}
+        as="h3"
+        eyebrow={ROLE_LABELS[role] ?? role ?? 'Provider'}
+        title={name}
+        pill={
+          <Pill as="span" tone={ok ? 'success' : 'danger'}>
+            {label}
+            {!ok && outcome ? <code className="font-mono font-normal">{outcome}</code> : null}
+          </Pill>
+        }
+      />
 
       {!ok && (detail || httpStatus != null) && (
-        <p className="problem">
+        <p className="rounded-field bg-danger-soft px-3 py-2 text-sm text-danger">
           {httpStatus != null && <strong>HTTP {httpStatus}. </strong>}
           {detail}
         </p>
       )}
 
-      <dl className="facts">
-        <div>
-          <dt>Round trip</dt>
-          <dd>{formatMs(roundTripMs)}</dd>
-        </div>
-        <div>
-          <dt>Instant (UTC)</dt>
-          <dd>{utc ? <code>{formatUtcInstant(utc)}</code> : <span className="muted">no trusted instant</span>}</dd>
-        </div>
-        <div>
-          <dt>Zurich time</dt>
-          <dd>
-            <ZurichTime local={zurichLocal} offset={zurichOffset} />
-          </dd>
-        </div>
-      </dl>
+      <Facts>
+        <Fact label="Round trip">{formatMs(roundTripMs)}</Fact>
+        <Fact label="Instant (UTC)">{utc ? <Code>{formatUtcInstant(utc)}</Code> : <span className="text-muted">no trusted instant</span>}</Fact>
+        <Fact label="Zurich time">
+          <ZurichTime local={zurichLocal} offset={zurichOffset} />
+        </Fact>
+      </Facts>
 
       <RawPayload raw={rawPayload} providerName={name} />
-    </article>
+    </Card>
   )
 }
 

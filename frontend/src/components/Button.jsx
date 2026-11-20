@@ -3,7 +3,6 @@ const VARIANTS = {
   secondary: 'bg-surface text-ink-2 border-control hover:bg-subtle',
   strong: 'bg-strong text-on-strong border-strong hover:opacity-90',
   quiet: 'bg-transparent text-accent-ink border-transparent hover:bg-accent-soft',
-  onAccent: 'bg-surface text-accent-ink border-surface hover:bg-accent-soft', // old punch blocks, removed with them
 }
 const SIZES = {
   md: 'min-h-11 px-4 text-sm rounded-control',

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, NetworkError } from '../api/client.js'
 import { getTimeLab } from '../api/timeLab.js'
+import Banner from '../components/Banner.jsx'
+import Button from '../components/Button.jsx'
 import CrossCheckPanel from './time-lab/CrossCheckPanel.jsx'
 import DecisionPanel from './time-lab/DecisionPanel.jsx'
 import ProviderCard from './time-lab/ProviderCard.jsx'
@@ -79,50 +81,44 @@ function TimeLab() {
   else if (problem) statusText = `${problem.title}.`
 
   return (
-    <div className="time-lab">
-      <h1 tabIndex={-1}>Time lab</h1>
-      <p className="lede">
-        Every punch time comes from external time providers, fetched and checked by our server. The browser clock is
-        never used. Ask the providers once to see what each answered, whether it passed validation, and what time a
-        punch would get.
-      </p>
-      <p className="small muted">Development-only diagnostic. Each click makes one fresh call; nothing is cached or saved.</p>
-
-      <div className="toolbar">
-        <button
-          type="button"
-          className="button"
-          onClick={ask}
-          aria-disabled={busy}
-          aria-busy={busy}
-          aria-describedby="time-lab-status"
-        >
-          {busy && <span className="spinner" aria-hidden="true" />}
-          {busy ? 'Asking providers...' : 'Ask both providers'}
-        </button>
-        {requestNo > 0 && <span className="small muted">Requests made on this page: {requestNo}</span>}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h1 tabIndex={-1} className="text-3xl font-semibold tracking-tight">
+          Time lab
+        </h1>
+        <p className="max-w-3xl text-base text-ink-2">
+          Every punch time comes from external time providers, fetched and checked by our server. The browser clock is never
+          used. Ask the providers once to see what each answered, whether it passed validation, and what time a punch would get.
+        </p>
+        <p className="text-sm text-muted">Development-only diagnostic. Each click makes one fresh call; nothing is cached or saved.</p>
       </div>
 
-      <section className="results" aria-labelledby="results-heading" aria-busy={busy}>
-        <h2 id="results-heading" className="visually-hidden">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <Button size="lg" onClick={ask} busy={busy} busyLabel="Asking providers..." aria-describedby="time-lab-status">
+          Ask both providers
+        </Button>
+        {requestNo > 0 && <span className="text-sm text-muted">Requests made on this page: {requestNo}</span>}
+      </div>
+
+      <section aria-labelledby="results-heading" aria-busy={busy} className="flex flex-col gap-6">
+        <h2 id="results-heading" className="sr-only">
           Results
         </h2>
-        <p id="time-lab-status" className="status-line" aria-live="polite" aria-atomic="true">
+        <p id="time-lab-status" className="min-h-6 text-base font-semibold" aria-live="polite" aria-atomic="true">
           {statusText}
         </p>
 
         {problem && (
-          <div className="alert alert--error">
-            <h3>{problem.title}</h3>
-            <p>{problem.body}</p>
-          </div>
+          <Banner tone="error" title={problem.title} announce={false}>
+            {problem.body}
+          </Banner>
         )}
 
         {data && (
-          <div className={busy ? 'is-stale' : undefined}>
+          <div className={`flex flex-col gap-6 transition-opacity ${busy ? 'opacity-55' : ''}`}>
             <DecisionPanel decision={data.decision} />
-            <h2 className="section-title">Providers</h2>
-            <div className="provider-grid">
+            <h2 className="text-lg font-semibold">Providers</h2>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-6">
               {data.providers.map((p) => (
                 <ProviderCard key={`${p.role}-${p.name}`} provider={p} />
               ))}
@@ -131,7 +127,7 @@ function TimeLab() {
           </div>
         )}
 
-        {state.status === 'idle' && <p className="muted">No answer yet. Press the button to ask the providers.</p>}
+        {state.status === 'idle' && <p className="text-base text-muted">No answer yet. Press the button to ask the providers.</p>}
       </section>
     </div>
   )

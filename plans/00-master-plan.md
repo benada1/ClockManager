@@ -238,3 +238,4 @@ The plan above was written first and not rewritten. Where it differs from the co
 - **Playwright:** not done on purpose (DECISIONS "Not done").
 - **Review rhythm:** the early "the user reviews every commit" rule was relaxed to review at the end of each phase (CLAUDE.md §6.1). Some early commits therefore do not meet the later short-message rule, and two commits had a red CI; both are listed in the corrections table.
 - **`STUDY-NOTES.md`:** a private learning file for the author, not part of the deliverable, so it is not in the repo.
+- **UI redesign (plan 10, after Phase 9):** new look from the user's mockups, a light/dark theme (light by default), and a live Zurich clock on the Clock page built only from the server's trusted time (D-082..D-086). The earlier "no live clock" choice (D-047) and the two switch blocks (D-057) are superseded.

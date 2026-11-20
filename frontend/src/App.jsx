@@ -15,10 +15,6 @@ import TimeLab from './pages/TimeLab.jsx'
 import { href, navigate, useHashRoute } from './router.js'
 
 const GUEST_PAGES = { '/login': Login, '/signup': Signup }
-const LEGACY_ROUTES = [
-  { path: '/', label: 'Clock' },
-  { path: '/time-lab', label: 'Time lab' },
-]
 
 // #/manager, #/manager/employee/<id>, #/manager/shift/<id>. Keyed by id so a new id starts fresh.
 function managerPage(path) {
@@ -48,31 +44,6 @@ function NotFound() {
   )
 }
 
-// Time lab keeps its own plain-CSS shell (developer tool, no login needed).
-function TimeLabShell({ path }) {
-  return (
-    <>
-      <header className="app-header">
-        <span className="app-name">Clock Manager</span>
-        <nav aria-label="Main">
-          <ul>
-            {LEGACY_ROUTES.map((r) => (
-              <li key={r.path}>
-                <a href={href(r.path)} aria-current={r.path === path ? 'page' : undefined}>
-                  {r.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </header>
-      <main className="page">
-        <TimeLab />
-      </main>
-    </>
-  )
-}
-
 function App() {
   const path = useHashRoute()
   const { phase, retry } = useAuth()
@@ -96,10 +67,9 @@ function App() {
     mainRef.current?.querySelector('h1')?.focus()
   }, [path, phase])
 
-  if (path === '/time-lab') return <TimeLabShell path={path} />
-
   let content
-  if (phase === 'loading') content = <Loading>Loading…</Loading>
+  if (path === '/time-lab') content = <TimeLab /> // developer tool, no login needed
+  else if (phase === 'loading') content = <Loading>Loading…</Loading>
   else if (phase === 'unreachable')
     content = (
       <div className="mx-auto my-auto w-full max-w-md">

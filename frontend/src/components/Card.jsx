@@ -1,7 +1,9 @@
+const EDGES = { line: 'border-line', ok: 'border-ok-line', danger: 'border-danger-line' }
+
 /** The rounded surface every screen is built from. Padding is set by the caller when the default does not fit. */
-export default function Card({ as: Tag = 'section', className = '', children, ...rest }) {
+export default function Card({ as: Tag = 'section', edge = 'line', className = '', children, ...rest }) {
   return (
-    <Tag className={`min-w-0 rounded-card border border-line bg-surface p-6 shadow-card ${className}`} {...rest}>
+    <Tag className={`min-w-0 rounded-card border bg-surface p-6 shadow-card ${EDGES[edge]} ${className}`} {...rest}>
       {children}
     </Tag>
   )

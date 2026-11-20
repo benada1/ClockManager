@@ -393,7 +393,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Options:** (a) Tailwind v4 with the Vite plugin · (b) more plain CSS · (c) a component library.
 - **Decision:** (a). Colors, font and radius live once in an `@theme` block (`src/app.css`); repeated styling lives in `Button`, `Field`, `Banner`, `Card`.
 - **Why:** The user asked for Tailwind; a small shared set of components keeps the screens consistent.
-- **Trade-offs:** Two styling systems for now. Tailwind's reset is not imported, so the old Time lab page keeps its look.
+- **Trade-offs:** Two styling systems for now. Tailwind's reset is not imported, so the old Time lab page keeps its look. *(Ended 2026-11-20 by plan 10: the Time lab uses the shared components, index.css is gone and the reset is on.)*
 
 ### D-046 — Hand-written router and auth context, no new libraries
 - **Date:** 2026-11-18 · **Status:** Accepted · **Area:** frontend
@@ -784,7 +784,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **No production deployment.** Nothing serves `frontend/dist`; a real server needs a front web server with HTTPS (README "Production").
 - **Out of scope for this assignment:** payroll, breaks, geofencing, SSO, offline punching, multi-tenant use and translations.
 - **No end-to-end browser test (Playwright).** Decided in Phase 8: no browser tool for now, so the screens were never opened by the author; the README has the manual list.
-- **No component or browser tests for the frontend.** Only the punch logic is tested (Vitest, D-060); the screens are checked through the mock scenarios and the manual list in the README.
+- **No interactive component or browser tests for the frontend.** The logic is tested (Vitest, D-060) and, since plan 10, `views.smoke.test.jsx` renders the main views to HTML with real-shaped data (no DOM, no clicks). The screens are otherwise checked through the mock scenarios and the manual list in the README.
 - **Mockup parts the API has no data for (redesign, plan 10).** The Team page's per-person line "43 h 49 min this week" (the employees endpoint has status, since and flags only; the line shows those instead) and the problems table's "Show all" link (all problems, at most 100, are always listed; the chips only filter). Adding weekly hours would need `weekSeconds` on `GET /api/manager/employees`.
 
 ## Corrections to Claude's output

@@ -44,7 +44,7 @@ export default function AppShell({ children }) {
   const isCurrent = (p) => p === path || (p === '/manager' && path.startsWith('/manager/'))
 
   return (
-    <div className="ui flex min-h-screen flex-col bg-canvas font-sans text-ink antialiased">
+    <div className="flex min-h-screen flex-col bg-canvas font-sans text-ink antialiased">
       <header className={user ? 'border-b border-line bg-surface' : ''}>
         <div className={`mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-6 ${user ? 'py-3' : 'py-5'}`}>
           <div className="flex flex-1 basis-0">

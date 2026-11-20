@@ -10,7 +10,7 @@ Employee time clock (Clock In / Clock Out). ASP.NET Core + SQL Server + React.
 - `CLAUDE.md` and `.claude/` (agents and skills): the rules the work followed. The rule that matters most: **punch times come only from the external Europe/Zurich time API, never from a local clock**.
 - `backend/ClockManager.Api` (API), `backend/ClockManager.Tests` (xUnit), `frontend/` (React).
 - `.claude/agents/` (backend, frontend, db, qa) and `.claude/skills/` (`record-decision`: how decisions are written; `verify`: the quality gate script; `zurich-time-cases`: verified DST instants and the test matrix).
-- Plans in order: `plans/01-trusted-clock.md`, `02-schema`, `03-punch-api`, `04-auth`, `05-ui-punch`, `06-history`, `07-manager`, `08-qa`, `09-polish`.
+- Plans in order: `plans/01-trusted-clock.md`, `02-schema`, `03-punch-api`, `04-auth`, `05-ui-punch`, `06-history`, `07-manager`, `08-qa`, `09-polish`, `10-ui-redesign`.
 
 ## Prerequisites
 
@@ -99,16 +99,18 @@ run, so the integration tests run on every push (D-026).
 **Honest note:** the screens were checked from the code, the mock scenarios and the tests, and the flows were run against the real backend with curl. The author has not looked at them in a browser, so this list is the manual check.
 
 Start the backend and the frontend (see Run locally), open http://localhost:5173 and check by hand:
-1. **Sign up** with a new username, then you land on the punch screen (signup logs you in).
-2. **Clock in:** the screen shows "You clocked in at HH:mm (Zurich time)".
+1. **Sign up** with a new username, then you land on the Clock page (signup logs you in). The big clock and the greeting come from the server's trusted time; with the providers down it says "Server time unavailable" instead of showing the PC's time.
+2. **Clock in:** the card shows "On shift" and "Shift started at HH:mm · running for H:MM:SS".
 3. **Second tab:** open the app in another tab and press Clock in there: you get a clear "already clocked in" message.
-4. **Clock out:** the screen shows "You clocked out at HH:mm (Zurich time)" and how long you worked.
+4. **Clock out:** the card shows "Clocked out and saved", the clock-out time and how long you worked; "Last shift" and "This week" update.
 5. **Time provider down:** turn off the network and punch: you see "can't get a trusted time", nothing is saved, and Try again works later.
 6. **Log out**, then try the punch URL again: you are sent to the login page.
 7. **History:** open History in the header: today's shift is listed with its duration, and the week total matches.
-8. **Manager** (after setting the manager password, see Login): the Team and Problems lists load, and Correct on a shift asks for a reason and then shows "Corrected by a manager" in that employee's History.
+8. **Manager** (after setting the manager password, see Login): "Needs review" (with filter chips) and "People" load, and Correct on a shift asks for a reason and then shows "Corrected by a manager" in that employee's History.
 
-`npm run dev:mock` (in `frontend/`) shows every screen state without the backend, e.g. `?mock=forgotten`, `?mock=unavailable`, `?mock=conflict`, `?mock=expired`.
+9. **Theme:** the sun/moon button in the top bar switches light and dark; a first visit is always light, and the choice survives a reload (D-082).
+
+`npm run dev:mock` (in `frontend/`) shows every screen state without the backend, e.g. `?mock=forgotten`, `?mock=unavailable`, `?mock=conflict`, `?mock=expired`, `?mock=notime` (no server time: no clock).
 
 ## Login and signup
 
@@ -180,8 +182,8 @@ with a clock change is noted (D-064..D-066). In the app, open **History** in the
 ## Manager view
 
 Log in as a **Manager** (only through the seed: `dotnet user-secrets set "Seed:ManagerPassword" "<password>"`, then user `manager`) and
-open **Manager** in the header. You see the team (who is clocked in, warnings) and a list of problems (forgotten clock-outs, unusually long or
-short shifts). Open an employee's week or a shift and press **Correct** to fix a clock-in or clock-out time: a reason is required, the time must be
+open **Manager** in the header. You see the shifts that need review (forgotten clock-outs, unusually long or
+short shifts, with filter chips by kind) and the people on the team (who is clocked in, warnings). Open an employee's week or a shift and press **Correct** to fix a clock-in or clock-out time: a reason is required, the time must be
 in the past and must not overlap another shift, and only a forgotten shift can be closed. The original value, the new value, who changed it, when
 (trusted clock) and why are kept for ever, and the employee sees "Corrected by a manager" in their History (D-067..D-075).
 
