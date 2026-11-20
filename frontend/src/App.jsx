@@ -11,7 +11,6 @@ import ManagerEmployee from './pages/ManagerEmployee.jsx'
 import ManagerShift from './pages/ManagerShift.jsx'
 import Punch from './pages/Punch.jsx'
 import Signup from './pages/Signup.jsx'
-import TimeLab from './pages/TimeLab.jsx'
 import { href, navigate, useHashRoute } from './router.js'
 
 const GUEST_PAGES = { '/login': Login, '/signup': Signup }
@@ -68,8 +67,7 @@ function App() {
   }, [path, phase])
 
   let content
-  if (path === '/time-lab') content = <TimeLab /> // developer tool, no login needed
-  else if (phase === 'loading') content = <Loading>Loading…</Loading>
+  if (phase === 'loading') content = <Loading>Loading…</Loading>
   else if (phase === 'unreachable')
     content = (
       <div className="mx-auto my-auto w-full max-w-md">

@@ -26,7 +26,7 @@ internal sealed class FakeProvidersApiFactory(ITimeSource primary, ITimeSource s
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<IElapsedTimer>(Timer);
-            // Last registration wins: ITrustedClock, the health check and the Time lab all resolve this one.
+            // Last registration wins: ITrustedClock and the health check both resolve this one.
             services.AddTransient(sp => new TrustedClock(
                 primary,
                 secondary,

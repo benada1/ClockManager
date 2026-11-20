@@ -94,27 +94,6 @@ public sealed class TrustedClockStep4QaTests
         Assert.DoesNotContain(LeakText, body);
     }
 
-    [Fact]
-    public async Task Time_lab_shows_error_outcome_and_detail_for_a_throwing_provider()
-    {
-        await using var factory = new FakeProvidersApiFactory(
-            new FakeTimeSource(TimeNow, (_, _) => throw new InvalidOperationException(LeakText)),
-            FakeTimeSource.Returning(FakeTimeSource.Reading(TimeApi, T1)),
-            "Development");
-        using var client = factory.CreateClient();
-
-        using var response = await client.GetAsync("/api/dev/time-lab");
-        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var primary = json.GetProperty("providers")[0];
-        Assert.Equal("error", primary.GetProperty("outcome").GetString());
-        Assert.Contains(LeakText, primary.GetProperty("detail").GetString()); // dev-only by design (D-013)
-        Assert.Equal(JsonValueKind.Null, primary.GetProperty("utc").ValueKind);
-        Assert.Equal("accepted", json.GetProperty("decision").GetProperty("result").GetString());
-        Assert.Equal(TimeApi, json.GetProperty("decision").GetProperty("provider").GetString());
-    }
-
     // ---------- Free hunt: body encoding edge cases ----------
 
     /// <summary>A UTF-8 BOM before an otherwise valid body: rejected (fail closed), never mis-parsed.</summary>
@@ -146,13 +125,27 @@ public sealed class TrustedClockStep4QaTests
         Assert.Equal(TimeSourceFailureReason.InvalidResponse, Assert.IsType<TimeSourceFailure>(result).Reason);
     }
 
-    // ---------- Free hunt: Development-only bypass attempts ----------
+    // ---------- Removed Time lab: the route is gone in every environment (D-087) ----------
 
     [Theory]
-    [InlineData("/API/DEV/TIME-LAB")]
-    [InlineData("/api/dev/time-lab/")]
-    [InlineData("/api/Dev/Time-Lab?x=1")]
-    public async Task Time_lab_route_variants_are_404_outside_development(string url)
+    [InlineData("Development", "/api/dev/time-lab")]
+    [InlineData("Development", "/API/DEV/TIME-LAB")]
+    [InlineData("Production", "/api/dev/time-lab")]
+    public async Task Removed_time_lab_route_is_404(string environment, string url)
+    {
+        await using var factory = new FakeProvidersApiFactory(
+            FakeTimeSource.Returning(FakeTimeSource.Reading(TimeNow, T1)),
+            FakeTimeSource.Returning(FakeTimeSource.Reading(TimeApi, T1)),
+            environment);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Swagger_is_404_outside_development()
     {
         await using var factory = new FakeProvidersApiFactory(
             FakeTimeSource.Returning(FakeTimeSource.Reading(TimeNow, T1)),
@@ -160,9 +153,6 @@ public sealed class TrustedClockStep4QaTests
             "Production");
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync(url);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/swagger/v1/swagger.json")).StatusCode);
     }
 

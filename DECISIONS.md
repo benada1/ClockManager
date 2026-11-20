@@ -114,7 +114,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Refs:** plans/01-trusted-clock.md §4.6, §4.7 · `Infrastructure/Time/TimeHealthCheck.cs` · `TimeHealthCheckTests` · `TimeHealthEndpointTests`
 
 ### D-013 — Development-only Time lab (`GET /api/dev/time-lab`), allowed to show provider details
-- **Date:** 2026-11-17 · **Status:** Accepted · **Area:** backend
+- **Date:** 2026-11-17 · **Status:** Superseded by D-087 (removed 2026-11-20) · **Area:** backend
 - **Context:** The developer asked to see the providers live: what each one sent, how long it took, whether they agreed and what a punch would get (plan 01 step 3b). `/health/time` deliberately hides all of that.
 - **Options:** (a) read the logs only · (b) put the details into `/health/time` · (c) a separate diagnostic endpoint, mapped only in Development.
 - **Decision:** (c). One uncached run of the real orchestrator (`TrustedClock.RunAsync`) per request; always 200, also when the decision is a failure. Per provider: role, outcome, RTT, HTTP status, `detail`, sanitized raw payload, and UTC / Zurich local / offset **computed from the instant with tzdb**, not copied from the provider. Plus the cross-check numbers and the decision (accepted provider or the 503 code). Outside Development the controller is removed from MVC discovery (`[DevelopmentOnly]` + an `IApplicationFeatureProvider`) and `ITimeLab` is not registered: the route is a 404 and absent from Swagger.
@@ -144,7 +144,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Date:** 2026-11-17 · **Status:** Accepted · **Area:** frontend
 - **Context:** CLAUDE.md rule 1 and the repeated October hour (T6).
 - **Options:** (a) parse into `Date` and format in the browser's zone · (b) format server ISO instants with `Intl.DateTimeFormat({ timeZone: 'Europe/Zurich' })` · (c) show the server's `zurichLocal` + `zurichOffset` text.
-- **Decision:** (c) for the Time lab (fractions cut to milliseconds, CET/CEST added for +01:00/+02:00); (b) remains the plan for ordinary screens. Never (a).
+- **Decision:** (c) for the Time lab (fractions cut to milliseconds, CET/CEST added for +01:00/+02:00); (b) remains the plan for ordinary screens. Never (a). *(2026-11-20: the Time lab and `serverTime.js` are removed (D-087); every screen now uses (b).)*
 - **Why:** The browser's clock and zone play no part, and the offset is always visible, so the two "02:30" of October can be told apart.
 - **Trade-offs:** Depends on the server sending both strings; the punch DTOs (Phase 3) should keep them.
 - **Refs:** `frontend/src/lib/serverTime.js` · `frontend/src/pages/time-lab/ZurichTime.jsx`
@@ -155,7 +155,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Options:** (a) test only against the real backend · (b) a Vite plugin serving fixed scenarios, only in `npm run dev:mock`.
 - **Decision:** (b), scenario chosen with `?mock=<name>` (accepted, single, lowprecision, dst, disagree, down, invalid, notdev, servererror, unreachable). The `/api` proxy answers a down backend with 502 + `X-Dev-Proxy-Error: backend-unreachable`, which the client turns into a `NetworkError`.
 - **Why:** Vite's bare 502 looks like a server error; every state can be shown on demand.
-- **Trade-offs:** The mock fixtures can drift from the contract (`TimeLabResponse` is the source of truth). Never part of the production bundle.
+- **Trade-offs:** The mock fixtures can drift from the contract (`TimeLabResponse` is the source of truth). Never part of the production bundle. *(2026-11-20: the Time lab scenarios are removed with the page (D-087); the auth/status/punch/history/manager scenarios in `dev/mockAuth.js` and the proxy marker stay.)*
 - **Refs:** `frontend/dev/mockApi.js` · `frontend/vite.config.js`
 
 ### D-018 — Startup-validation tests read the host's startup log, not only what `CreateClient()` throws
@@ -624,6 +624,15 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Why:** The server already returns at most 100 problems (D-075), so filtering in the browser is instant and needs no new endpoint.
 - **Trade-offs:** The table scrolls sideways on a phone (min width 48rem) instead of stacking; the cards wrap. Per-person weekly hours from the mockup are left out (see "Not done").
 
+### D-087 — The Time lab developer tool is removed (supersedes D-013)
+- **Date:** 2026-11-20 · **Status:** Accepted · **Area:** frontend / backend
+- **Context:** The user asked to remove the Time lab: the `#/time-lab` page and its Development-only `GET /api/dev/time-lab`, which asked both time providers on each click.
+- **Options:** (a) remove only the page and link, keep the endpoint · (b) remove the page, the endpoint, its service and mapper, and the `[DevelopmentOnly]` helper that only it used.
+- **Decision:** (b). Removed: the page and its panels, `api/timeLab.js`, `lib/serverTime.js` (only the lab used it), the footer link, the lab's mock scenarios; `TimeLabController`, `ITimeLab`/`TimeLabRunner`/`TimeLabMapper`, `AddTimeLab`, `DevelopmentOnly.cs` and `TimeLabTests`. A test now checks that the old route is 404 in Development and Production.
+- **Why:** The endpoint existed only for the page; an unused endpoint that calls real providers would be dead code with an attack surface. The punch path, `/health/time` (D-012) and the trusted clock are untouched, and the clock's own tests keep covering the providers, the cross-check and DST.
+- **Trade-offs:** No screen shows the providers' raw answers anymore; `/health/time` (names, outcomes, round trips) and the logs are what's left for diagnosing a provider. Restoring it means reverting this commit.
+- **Refs:** `TrustedClockStep4QaTests.Removed_time_lab_route_is_404`
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -663,16 +672,14 @@ left out, and known limitations. Entries are added in the same change as the cod
 | A health-check caller disconnects during a refresh | Only that caller stops waiting; the shared refresh finishes for the others | `TimeHealthCheckTests.A_caller_that_gives_up_does_not_cancel_the_refresh_others_wait_for` |
 | Punch right after a cached health check | Punch path asks both providers every time; never reads the health cache | `TimeHealthEndpointTests.Punch_path_never_uses_the_health_cache` |
 | Provider `detail`, raw body or parsed time in the public health check | Never included: names, outcome codes, RTTs, delta, code only | `TimeHealthEndpointTests.Never_exposes_provider_detail_payload_or_parsed_time` |
-| Time lab requested outside Development (Production, Staging, Testing) | 404; controller not discovered, `ITimeLab` not registered, no provider call | `TimeLabTests.Does_not_exist_outside_Development` |
-| Time lab when a punch would fail (disagree, all down) | Still 200; `decision.result = failed`, `code`, `httpStatus: 503` | `TimeLabTests.Development_returns_200_even_when_a_punch_would_get_503`, `Disagreement_is_a_failed_decision_*` |
+| The removed Time lab route requested (any environment) | 404, no provider call (D-087) | `TrustedClockStep4QaTests.Removed_time_lab_route_is_404` |
 | Second open shift for one employee (two tabs / two servers) (S1) | The DB refuses it: `UX_Shifts_OneOpenPerEmployee`, SQL error 2601 | `ShiftConstraintTests.S1_*` |
 | Clock-out equal to (T11) or before (T10) clock-in (S5) | The DB refuses it: `CK_Shifts_ClockOutAfterClockIn`, SQL error 547; `Shift.Close` refuses it first | `ShiftConstraintTests.S5_*`, `PunchStampTests.Close_refuses_*` |
 | Repeated October hour (T6), DST-start instant (T7), µs / 100 ns instants (S9) | Stored as a UTC instant + the offset as seen; round-trips exactly | `PunchRoundTripTests.S9_*` |
 | Overnight (T3) / year-end (T8) shift: which work date? | The Zurich date of clock-in (2026-01-12; 2026-12-31), from tzdb, checked again in SQL | `PunchStampTests` · `CK_Shifts_ClockInZurichDate` |
 | `/health/time` during graceful shutdown (stopping token cancelled, client still connected) (QA-10) | 503 with `canPunch: false`, `code: time.unavailable`; was 500 `server.error`. A client that disconnects still gets no body | `TrustedClockStep4QaTests.QA10_health_time_during_shutdown_is_503_not_500_server_error` |
-| A provider throws instead of returning a result, seen from `/health/time` and the 503 body | Only the outcome code `error`, never exception text; the Time lab (dev only) shows the detail | `TrustedClockStep4QaTests.Health_time_shows_error_outcome_*`, `Punch_503_body_for_two_throwing_providers_has_no_exception_text` |
+| A provider throws instead of returning a result, seen from `/health/time` and the 503 body | Only the outcome code `error`, never exception text | `TrustedClockStep4QaTests.Health_time_shows_error_outcome_*`, `Punch_503_body_for_two_throwing_providers_has_no_exception_text` |
 | Server process in another time zone or culture (E16) | No effect: NodaTime tzdb + invariant parsing. Full suite identical under Pacific/Kiritimati + th-TH, Pacific/Pago_Pago + ar-SA, Asia/Kathmandu + fa-IR | `HostEnvironmentOverrideTests` (env `CLOCKMANAGER_TEST_TZ` / `CLOCKMANAGER_TEST_CULTURE`), CI run with `TZ` set |
-| Time lab around DST (T6 repeated hour, T7 DST start) | Local time and offset from tzdb at the instant (02:30 +02:00 / 02:15 +01:00; 03:00 +02:00), even if the provider's offset says otherwise | `TimeLabTests.Local_time_and_offset_come_from_tzdb_around_DST` |
 | 10 simultaneous Clock Ins, same employee, separate connections (S2) | `UX_Shifts_OneOpenPerEmployee`: exactly 1 row, the other 9 get SQL 2601 | `ShiftConcurrencyTests.S2_ten_parallel_clock_ins_*` (3 rounds) |
 | Clock Out of shift A racing a new Clock In (tab A closes, tab B clocks in) | Never 2 open shifts: the clock-in either lands after the close or gets 2601; the clock-out always wins | `ShiftConcurrencyTests.Clock_out_racing_a_new_clock_in_never_leaves_two_open_shifts` (15 rounds) |
 | Two Clock Outs on one open shift (double click / two tabs) (S10) | `RowVersion`: one wins, the other gets `DbUpdateConcurrencyException`, the first value stays | `ShiftConcurrencyTests.S10_two_parallel_clock_outs_*`, `S10_stale_clock_out_*` |
@@ -772,7 +779,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 | Token in the `Authorization` header, the query string or another cookie name | Ignored: 401 | `AuthQaTokenTests.A_good_token_outside_the_cookie_*` |
 | Employee or anonymous asking about a missing or an existing id | Identical 403 / 401: existence is not revealed | `ManagerQaAccessTests` |
 | Cross-site POST (text, form, multipart, XML) with a valid cookie | 415 and nothing changes; no CORS headers anywhere | `AuthQaBrowserTests` |
-| Swagger and the time lab outside Development | 404 | `AuthQaHostTests` |
+| Swagger outside Development, and the removed time lab route | 404 | `AuthQaHostTests` |
 | Seed in Production or Staging, or a blank `Seed:ManagerPassword` | Nothing created / nobody gets a hash | `AuthQaSeedTests` |
 | Clock page while the time providers are down (`serverNow: null`) | No clock and no time-of-day greeting; "Server time unavailable"; punching still allowed, the server decides (D-084) | `serverClock.test.js` (cleared on a sync without time) |
 | Clock page right after a punch (`serverNow` cleared until the refresh) | The last server anchor is kept, so the clock does not blink (D-084) | `serverClock.test.js` (kept after a punch) |

@@ -228,12 +228,6 @@ offline. The tests turn it off, so no test touches the network.
 
 - **`GET http://localhost:5258/health/time`** (all environments; also at `/api/health/time`, which the Vite dev proxy can reach): 200 when a punch would get a time
   right now, 503 otherwise, with each provider's status code and round trip. Cached for 10 s (D-012).
-- **Time lab** (Development only, D-013): http://localhost:5173/#/time-lab with an "Ask both providers"
-  button, backed by `GET /api/dev/time-lab`. It shows each provider's raw answer, round trip, parsed
-  UTC / Zurich time, the cross-check and what a punch would get. It is a 404 outside Development.
-  To see every UI state without the backend, run `npm run dev:mock` in `frontend/` and open e.g.
-  http://localhost:5173/?mock=disagree#/time-lab (scenarios: accepted, single, lowprecision, dst,
-  disagree, down, invalid, notdev, servererror, unreachable; D-017).
 - **Live provider tests** (skipped by default, so CI never touches the network):
 
       $env:CLOCKMANAGER_LIVE_TESTS = '1'

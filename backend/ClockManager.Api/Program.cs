@@ -10,8 +10,7 @@ using ClockManager.Api.Infrastructure.Time;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// [DevelopmentOnly] controllers (the Time lab) are not even discovered outside Development: 404, not in Swagger.
-builder.Services.AddControllers().ExcludeDevelopmentOnlyControllers(builder.Environment)
+builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
         // Signup, login and corrections refuse a member that appears twice, like the punch body (QA-41, D-041).
@@ -25,10 +24,6 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddAppProblemDetails();
 
 builder.Services.AddTrustedClock();
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddTimeLab();
-}
 
 builder.Services.AddPersistence();
 

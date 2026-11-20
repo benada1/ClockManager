@@ -23,14 +23,6 @@ function Brand() {
   )
 }
 
-function TimeLabLink() {
-  return (
-    <a className="text-muted underline-offset-4 hover:underline" href={href('/time-lab')}>
-      Time lab (developer tool)
-    </a>
-  )
-}
-
 /**
  * Frame of every screen. Signed in: brand, the segmented nav, theme, who is logged in, Log out.
  * Signed out (log in, sign up, loading): brand and theme only.
@@ -97,10 +89,9 @@ export default function AppShell({ children }) {
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8 sm:px-6 md:py-10">{children}</main>
 
-      <footer className="mx-auto flex w-full max-w-6xl flex-wrap justify-between gap-4 px-4 py-5 text-sm text-muted sm:px-6">
-        {user ? <span /> : <span>All times are Zurich time.</span>}
-        <TimeLabLink />
-      </footer>
+      {!user && (
+        <footer className="mx-auto w-full max-w-6xl px-4 py-5 text-sm text-muted sm:px-6">All times are Zurich time.</footer>
+      )}
     </div>
   )
 }

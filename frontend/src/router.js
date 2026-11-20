@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-// Minimal hash routing (#/time-lab). The app has very few screens, so a router
+// Minimal hash routing (#/history). The app has very few screens, so a router
 // dependency would not pay for itself; this also needs no server-side fallback config.
 
 function subscribe(onChange) {
@@ -10,7 +10,7 @@ function subscribe(onChange) {
 
 const getPath = () => window.location.hash.replace(/^#/, '') || '/'
 
-/** Current route path, e.g. "/" or "/time-lab". */
+/** Current route path, e.g. "/" or "/history". */
 export function useHashRoute() {
   return useSyncExternalStore(subscribe, getPath, () => '/')
 }

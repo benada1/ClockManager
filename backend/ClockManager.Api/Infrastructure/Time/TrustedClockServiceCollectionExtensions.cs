@@ -70,16 +70,6 @@ public static class TrustedClockServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>
-    /// The Development-only Time lab (D-013): one uncached run of the real orchestrator per request. Call this only in
-    /// Development; its controller is excluded elsewhere (<c>ExcludeDevelopmentOnlyControllers</c>).
-    /// </summary>
-    public static IServiceCollection AddTimeLab(this IServiceCollection services)
-    {
-        services.AddTransient<ITimeLab, TimeLabRunner>();
-        return services;
-    }
-
     internal const string TimeNowClientName = "time.now";
     internal const string TimeApiIoClientName = "timeapi.io";
 

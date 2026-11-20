@@ -43,7 +43,7 @@ internal sealed partial class TrustedClock : ITrustedClock
     /// One full attempt: both provider results, the cross-check and the decision. Provider problems never throw here;
     /// they end up in <see cref="TrustedClockRun.Failure"/>. Only the caller's cancellation throws
     /// (<see cref="OperationCanceledException"/>), even if one provider had already answered: the caller is gone.
-    /// Public to the assembly so diagnostics (health check, dev time lab) show exactly what a punch would get.
+    /// Public to the assembly so diagnostics (the health check) show exactly what a punch would get.
     /// </summary>
     internal async Task<TrustedClockRun> RunAsync(CancellationToken ct)
     {

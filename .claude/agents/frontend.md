@@ -40,7 +40,7 @@ in a few seconds, without instructions. Read `CLAUDE.md` first and follow it str
   decision. Theme values (colors, fonts) go in the CSS `@theme` block, not scattered as one-off values.
 - Keep markup readable: pull repeated class lists into small React components (`Button`, `Field`, `Banner`, `Card`), not into
   long copy-pasted strings. Avoid arbitrary values like `w-[437px]` unless truly needed.
-- The existing plain-CSS Time lab page stays working. Don't rewrite it unless asked; new screens use Tailwind.
+- All screens use Tailwind and the shared theme tokens in `src/app.css` (light default, dark via `data-theme`, D-082).
 
 ## Hard rules
 - **Never use the browser clock for punches.** No `new Date()` / `Date.now()` to create, send or check

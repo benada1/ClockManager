@@ -9,9 +9,6 @@ import WeekView from './pages/history/WeekView.jsx'
 import { weekDays } from './pages/history/weeks.js'
 import ClockCard from './pages/punch/ClockCard.jsx'
 import LastShiftCard from './pages/punch/LastShiftCard.jsx'
-import DecisionPanel from './pages/time-lab/DecisionPanel.jsx'
-import ProviderCard from './pages/time-lab/ProviderCard.jsx'
-import CrossCheckPanel from './pages/time-lab/CrossCheckPanel.jsx'
 
 const IN = { utc: '2026-11-18T07:03:11.000Z', zurich: '2026-11-18T08:03:11.000+01:00' }
 const OUT = { utc: '2026-11-19T05:00:00.000Z', zurich: '2026-11-19T06:00:00.000+01:00' }
@@ -42,13 +39,6 @@ describe('views render', () => {
     const w = html(<WeekView history={{ data, loading: false, failure: null }} header={<h1>H</h1>} />)
     expect(w).toContain('Week total')
     expect(w).toContain('2 shifts · 2 flagged')
-  })
-
-  it('time lab panels', () => {
-    const p = { role: 'primary', name: 'time.now', outcome: 'ok', roundTripMs: 300, utc: '2026-11-17T12:02:58.446Z', zurichOffset: '+01:00', zurichLocal: '2026-11-17T13:02:58.446', rawPayload: '{}' }
-    expect(html(<ProviderCard provider={p} />)).toContain('time.now')
-    expect(html(<DecisionPanel decision={{ result: 'accepted', provider: 'time.now', utc: p.utc, zurichLocal: p.zurichLocal, zurichOffset: '+01:00' }} />)).toContain('Accepted')
-    expect(html(<CrossCheckPanel crossCheck={null} />)).toContain('Not cross-checked')
   })
 
   it('app shell renders', () => {
