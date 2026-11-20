@@ -43,11 +43,12 @@ export default function Login() {
 
   return (
     <AuthLayout
-      title="Log in"
+      title="Welcome back"
+      intro="Log in to clock in and see your hours."
       footer={
         <>
           New here?{' '}
-          <a className="font-medium text-accent underline" href={href('/signup')}>
+          <a className="font-semibold text-accent-ink no-underline hover:underline" href={href('/signup')}>
             Create an account
           </a>
         </>
@@ -64,6 +65,7 @@ export default function Login() {
           autoCorrect="off"
           spellCheck={false}
           required
+          placeholder="e.g. alice"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           error={fields.username}
@@ -78,7 +80,7 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           error={fields.password}
         />
-        <Button type="submit" busy={busy} busyLabel="Logging in…" block>
+        <Button type="submit" size="lg" busy={busy} busyLabel="Logging in…" block className="mt-1 hover:shadow-cta">
           Log in
         </Button>
       </form>

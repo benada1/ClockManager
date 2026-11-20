@@ -48,7 +48,7 @@ export default function Signup() {
       footer={
         <>
           Already have an account?{' '}
-          <a className="font-medium text-accent underline" href={href('/login')}>
+          <a className="font-semibold text-accent-ink no-underline hover:underline" href={href('/login')}>
             Log in
           </a>
         </>
@@ -90,7 +90,7 @@ export default function Signup() {
           onChange={set('password')}
           error={fields.password}
         />
-        <Button type="submit" busy={busy} busyLabel="Creating account…" block>
+        <Button type="submit" size="lg" busy={busy} busyLabel="Creating account…" block className="mt-1 hover:shadow-cta">
           Create account
         </Button>
       </form>
