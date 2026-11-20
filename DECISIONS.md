@@ -618,6 +618,12 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** The disabled block's explanation ("Not available: you are clocked in") is gone because nothing is disabled to explain. Week totals count closed shifts only, as on History (D-063).
 - **Refs:** plans/10-ui-redesign.md · `views.test.js` (`weekOf`, `weekDays`, `shiftTimeParts`)
 
+### D-086 — Team page: problem filter chips in the browser, people as cards
+- **Date:** 2026-11-20 · **Status:** Accepted · **Area:** frontend / UX · **Amends:** D-069 (layout)
+- **Decision:** "Needs review" shows a count and four chips (All / Forgot to clock out / Unusually long / Very short, `aria-pressed`) that filter the loaded list in the browser; "Showing N of M" is announced. A forgotten clock-out is a red pill, long and short shifts amber, everywhere (`shiftBadges` tone `danger`). Each row has a "Review" button to the shift page. The employees table became a grid of person cards (avatar, name, status, warning pills) linking to the person's week; the employee and shift pages get a "‹ Team" back link and an avatar header.
+- **Why:** The server already returns at most 100 problems (D-075), so filtering in the browser is instant and needs no new endpoint.
+- **Trade-offs:** The table scrolls sideways on a phone (min width 48rem) instead of stacking; the cards wrap. Per-person weekly hours from the mockup are left out (see "Not done").
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
@@ -779,6 +785,7 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Out of scope for this assignment:** payroll, breaks, geofencing, SSO, offline punching, multi-tenant use and translations.
 - **No end-to-end browser test (Playwright).** Decided in Phase 8: no browser tool for now, so the screens were never opened by the author; the README has the manual list.
 - **No component or browser tests for the frontend.** Only the punch logic is tested (Vitest, D-060); the screens are checked through the mock scenarios and the manual list in the README.
+- **Mockup parts the API has no data for (redesign, plan 10).** The Team page's per-person line "43 h 49 min this week" (the employees endpoint has status, since and flags only; the line shows those instead) and the problems table's "Show all" link (all problems, at most 100, are always listed; the chips only filter). Adding weekly hours would need `weekSeconds` on `GET /api/manager/employees`.
 
 ## Corrections to Claude's output
 

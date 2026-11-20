@@ -50,9 +50,9 @@ function Summary({ data, hasOpen }) {
 
 /**
  * The week screen shared by History and the manager's employee view: page header with the week navigation,
- * loading, failure, empty, summary and days.
+ * page notices, loading, failure, empty, summary and days.
  */
-export default function WeekView({ history, header, empty, loadingText, manager = false, renderAction }) {
+export default function WeekView({ history, header, notices, empty, loadingText, manager = false, renderAction }) {
   const { data, loading, failure, previous, next, retry } = history
   const hasWeek = Boolean(data?.from && data?.to)
   const hasOpen = data?.days?.some((d) => d.shifts.some((s) => s.open))
@@ -63,6 +63,8 @@ export default function WeekView({ history, header, empty, loadingText, manager 
         {header}
         {hasWeek && <WeekNav data={data} loading={loading} previous={previous} next={next} />}
       </div>
+
+      {notices}
 
       {!data && loading && <Loading>{loadingText}</Loading>}
 

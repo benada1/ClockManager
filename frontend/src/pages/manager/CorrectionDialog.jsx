@@ -3,7 +3,7 @@ import * as managerApi from '../../api/manager.js'
 import Banner from '../../components/Banner.jsx'
 import Button from '../../components/Button.jsx'
 import Dialog from '../../components/Dialog.jsx'
-import Field from '../../components/Field.jsx'
+import Field, { INPUT } from '../../components/Field.jsx'
 import Loading from '../../components/Loading.jsx'
 import useFocusInvalid from '../../lib/useFocusInvalid.js'
 import { needsOffset } from '../../lib/zurich.js'
@@ -21,9 +21,9 @@ function prefill(shift, field) {
 
 function Radio({ name, value, checked, onChange, children, describedBy, invalid }) {
   return (
-    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-ui border border-line-strong px-3 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+    <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-field border border-control bg-surface px-3.5 py-2 transition-colors hover:bg-subtle has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
       <input type="radio" name={name} value={value} checked={checked} onChange={onChange} aria-describedby={describedBy} aria-invalid={invalid || undefined} className="size-4 accent-accent" />
-      <span className="text-base">{children}</span>
+      <span className="text-sm font-medium text-ink">{children}</span>
     </label>
   )
 }
@@ -31,8 +31,8 @@ function Radio({ name, value, checked, onChange, children, describedBy, invalid 
 function Compare({ label, children, strong = false }) {
   return (
     <div className="flex flex-col">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className={`text-base ${strong ? 'font-semibold' : ''}`}>{children}</dd>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className={`text-sm tabular-nums ${strong ? 'font-semibold text-ink' : 'text-ink-2'}`}>{children}</dd>
     </div>
   )
 }
@@ -142,12 +142,12 @@ export default function CorrectionDialog({ shiftId, initial = null, onClose, onS
       {detail && (
         <form ref={formRef} noValidate onSubmit={submit} className="flex flex-col gap-6">
           <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-base font-medium">Which time?</legend>
+            <legend className="mb-2 text-sm font-medium text-ink-2">Which time?</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               {['clockIn', 'clockOut'].map((f) => (
                 <Radio key={f} name="field" value={f} checked={form.field === f} onChange={() => chooseField(f)}>
                   {FIELD_NAMES[f]}
-                  <span className="block text-sm text-muted">
+                  <span className="block text-xs font-normal text-muted">
                     {shift[f]?.zurich ? `Now ${pointText(shift[f].zurich, { sameDayAs: shift.clockIn.zurich })}` : 'Not clocked out yet'}
                   </span>
                 </Radio>
@@ -156,7 +156,7 @@ export default function CorrectionDialog({ shiftId, initial = null, onClose, onS
             {errors.field && <p className="text-sm font-medium text-danger">{errors.field}</p>}
           </fieldset>
 
-          <dl className="grid grid-cols-3 gap-4 rounded-ui bg-canvas p-4">
+          <dl className="grid grid-cols-3 gap-4 rounded-field bg-subtle p-4">
             <Compare label="Current">{current ? pointText(current, { withOffset }) : 'Still open'}</Compare>
             <Compare label="Original">
               {!original.changed ? 'Same as current' : original.iso ? pointText(original.iso, { withOffset, sameDayAs: current }) : 'Still open'}
@@ -196,7 +196,7 @@ export default function CorrectionDialog({ shiftId, initial = null, onClose, onS
 
           {ambiguous.status === 'ambiguous' && (
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-base font-medium">This time happens twice that night. Which one?</legend>
+              <legend className="mb-2 text-sm font-medium text-ink-2">This time happens twice that night. Which one?</legend>
               {ambiguous.choices.map((c) => (
                 <Radio
                   key={c.offset}
@@ -218,8 +218,8 @@ export default function CorrectionDialog({ shiftId, initial = null, onClose, onS
             </fieldset>
           )}
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.reason} className="text-base font-medium">
+          <div className="flex flex-col gap-2">
+            <label htmlFor={ids.reason} className="text-sm font-medium text-ink-2">
               Reason
             </label>
             <textarea
@@ -231,7 +231,7 @@ export default function CorrectionDialog({ shiftId, initial = null, onClose, onS
               aria-invalid={errors.reason ? true : undefined}
               aria-describedby={[ids.counter, errors.reason && `${ids.reason}-error`].filter(Boolean).join(' ')}
               required
-              className={`w-full rounded-ui border bg-surface px-3 py-2 text-base text-ink ${errors.reason ? 'border-danger-line' : 'border-line-strong'}`}
+              className={`${INPUT} py-2.5 ${errors.reason ? 'border-danger' : 'border-line-strong'}`}
             />
             <p id={ids.counter} className="text-sm text-muted">
               Required, {REASON_MIN} to {REASON_MAX} characters. It is saved with the change. ({reasonLength} / {REASON_MAX})
