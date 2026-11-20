@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { dayBarParts } from '../pages/history/labels.js'
-import { nextColumn, tipAlign } from './barChartNav.js'
+import { TIP_START, nextColumn, shownDay, tipAlign, tipReducer } from './barChartNav.js'
 
 const ALIGN = { start: 'left-0', end: 'right-0', center: 'left-1/2 -translate-x-1/2' }
 
@@ -10,21 +10,19 @@ const ALIGN = { start: 'left-0', end: 'right-0', center: 'left-1/2 -translate-x-
  */
 export default function BarChart({ days, short = false, highlight = () => false, className = '' }) {
   const max = Math.max(0, ...days.map((d) => d.seconds))
-  const [hover, setHover] = useState(null)
-  const [focus, setFocus] = useState(null)
+  const [tip, send] = useReducer(tipReducer, TIP_START)
   const [stop, setStop] = useState(null)
-  const [dismissed, setDismissed] = useState(false)
   const root = useRef(null)
   const cols = useRef([])
 
   const tabStop = stop !== null && stop < days.length ? stop : Math.max(0, days.findIndex(highlight))
-  const shown = dismissed ? null : (hover ?? focus)
+  const shown = shownDay(tip)
 
-  // Escape anywhere or a tap outside hides the tooltip (WCAG 1.4.13 dismissible).
+  // Escape anywhere or a press outside hides the tooltip and releases a pinned day (WCAG 1.4.13 dismissible).
   useEffect(() => {
     if (shown === null) return undefined
-    const onKey = (e) => e.key === 'Escape' && setDismissed(true)
-    const onDown = (e) => !root.current?.contains(e.target) && setDismissed(true)
+    const onKey = (e) => e.key === 'Escape' && send({ type: 'escape' })
+    const onDown = (e) => !root.current?.contains(e.target) && send({ type: 'outside' })
     document.addEventListener('keydown', onKey)
     document.addEventListener('pointerdown', onDown)
     return () => {
@@ -32,11 +30,6 @@ export default function BarChart({ days, short = false, highlight = () => false,
       document.removeEventListener('pointerdown', onDown)
     }
   }, [shown])
-
-  const show = (set, i) => {
-    set(i)
-    setDismissed(false)
-  }
 
   return (
     <div ref={root} role="group" aria-label="Hours per day" className={`grid grid-cols-7 gap-2 ${className}`}>
@@ -55,18 +48,20 @@ export default function BarChart({ days, short = false, highlight = () => false,
             aria-label={parts.join(' · ')}
             tabIndex={i === tabStop ? 0 : -1}
             className="flex h-full cursor-default flex-col items-center gap-1.5 rounded-md outline-offset-4"
-            onPointerEnter={() => show(setHover, i)}
-            onPointerLeave={() => setHover((h) => (h === i ? null : h))}
+            onPointerEnter={() => send({ type: 'enter', index: i })}
+            onPointerLeave={() => send({ type: 'leave', index: i })}
             onFocus={() => {
               setStop(i)
-              show(setFocus, i)
+              send({ type: 'focus', index: i })
             }}
-            onBlur={() => setFocus((f) => (f === i ? null : f))}
-            onClick={() => show(setFocus, i)}
+            onBlur={() => send({ type: 'blur', index: i })}
+            onClick={() => send({ type: 'click', index: i })}
             onKeyDown={(e) => {
+              if (e.altKey || e.ctrlKey || e.metaKey) return // Alt+Left is the browser's Back
               const j = nextColumn(e.key, i, days.length)
               if (j === null) return
               e.preventDefault()
+              send({ type: 'key', index: j }) // re-shows even when j is the day already focused
               cols.current[j]?.focus()
             }}
           >

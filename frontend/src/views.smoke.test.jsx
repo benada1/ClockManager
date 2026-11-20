@@ -37,7 +37,7 @@ describe('views render', () => {
     const data = { from: '2026-11-16', to: '2026-11-22', totalSeconds: 78409, days: [day] }
     const bars = html(<BarChart days={weekDays(data)} />)
     expect(bars).toContain('aria-label="Hours per day"')
-    expect(bars).toContain('aria-label="Monday · No shifts"')
+    expect(bars).toContain('aria-label="Monday · 0 min"')
     const w = html(<WeekView history={{ data, loading: false, failure: null }} header={<h1>H</h1>} />)
     expect(w).toContain('Week total')
     expect(w).toContain('2 shifts · 2 flagged')

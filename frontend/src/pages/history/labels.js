@@ -21,14 +21,15 @@ export function weekCountsText(data) {
 }
 
 /**
- * Bar-chart tooltip for one weekDays() entry: ['Wednesday', '43 h 49 min', '2 shifts'] or ['Tuesday', 'No shifts'].
- * Joined with ' · ' it is also the column's accessible name, so both always match.
+ * Bar-chart tooltip for one weekDays() entry, always with a time: ['Wednesday', '43 h 49 min', '2 shifts'],
+ * ['Tuesday', '0 min'], ['Thursday', '0 min', '1 shift, still open']. Joined with ' · ' it is also the accessible name.
  */
 export function dayBarParts(day) {
-  if (!day.shifts) return [day.name, 'No shifts']
-  const count = `${day.shifts} ${day.shifts === 1 ? 'shift' : 'shifts'}`
-  // Same wording as the day card: an open shift is not counted yet.
-  return [day.name, day.seconds > 0 ? formatDuration(day.seconds) : 'Nothing counted yet', count]
+  if (!day.shifts) return [day.name, '0 min']
+  const total = day.counted ? formatDuration(day.seconds) : '0 min' // same total as the day card ("0 s" for sub-second)
+  let count = `${day.shifts} ${day.shifts === 1 ? 'shift' : 'shifts'}`
+  if (day.open) count += day.open === day.shifts ? ', still open' : `, ${day.open} still open`
+  return [day.name, total, count]
 }
 
 /** Plain-words notes for a day. Unknown notes are ignored. */

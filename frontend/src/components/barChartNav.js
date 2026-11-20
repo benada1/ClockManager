@@ -7,6 +7,36 @@ export function nextColumn(key, index, count) {
   return null
 }
 
+export const TIP_START = { hover: null, focus: null, dismissed: false }
+
+/**
+ * Tooltip state. `focus` is the focused or clicked (pinned) day; Escape and a press outside release it, so a
+ * dismissed card never comes back on its own. Any new hover, focus, click or key on a day shows it again.
+ */
+export function tipReducer(state, { type, index }) {
+  switch (type) {
+    case 'enter':
+      return { ...state, hover: index, dismissed: false }
+    case 'leave':
+      return state.hover === index ? { ...state, hover: null } : state
+    case 'focus':
+    case 'click':
+    case 'key':
+      return { ...state, focus: index, dismissed: false }
+    case 'blur':
+      return state.focus === index ? { ...state, focus: null } : state
+    case 'escape':
+      return { ...state, focus: null, dismissed: true }
+    case 'outside':
+      return TIP_START
+    default:
+      return state
+  }
+}
+
+/** The day whose card shows, or null. */
+export const shownDay = (state) => (state.dismissed ? null : (state.hover ?? state.focus))
+
 /** Tooltip anchor: the two outer columns on each side align to their edge so the card never leaves the chart. */
 export function tipAlign(index, count) {
   if (index < 2) return 'start'

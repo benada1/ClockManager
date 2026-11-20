@@ -60,7 +60,10 @@ export function weekDays(data) {
     const date = addDays(data.from, i)
     const day = (data.days ?? []).find((d) => d.date === date)
     const name = WEEKDAYS[weekdayIndex(parts(date))]
-    return { date, name, short: name.slice(0, 3), letter: name[0], seconds: day?.totalSeconds ?? 0, shifts: day?.shifts?.length ?? 0 }
+    const shifts = day?.shifts ?? []
+    // `counted` = has a finished shift (the day card's rule); a sub-second one counts with 0 seconds.
+    const open = shifts.filter((s) => s.open).length
+    return { date, name, short: name.slice(0, 3), letter: name[0], seconds: day?.totalSeconds ?? 0, shifts: shifts.length, open, counted: shifts.length > open }
   })
 }
 
