@@ -41,6 +41,15 @@
 
   --shadow-card: 0 1px 2px rgb(16 24 40 / 0.05);
   --shadow-cta: 0 8px 24px rgb(41 82 227 / 0.3);
+  --shadow-pop: 0 4px 12px rgb(16 24 40 / 0.12); /* small floating cards (chart tooltip) */
+
+  --animate-tip-in: tip-in 120ms ease-out;
+  @keyframes tip-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+  }
 
   --radius-control: 0.625rem; /* buttons, nav pills */
   --radius-field: 0.75rem; /* inputs, auth buttons */
@@ -86,6 +95,7 @@
     --color-backdrop: rgb(0 0 0 / 0.6);
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-cta: 0 8px 24px rgb(0 0 0 / 0.35);
+    --shadow-pop: 0 4px 12px rgb(0 0 0 / 0.5);
     color-scheme: dark;
   }
   :root {

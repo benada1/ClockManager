@@ -35,7 +35,9 @@ describe('views render', () => {
     expect(d).toContain('Wednesday 18 Nov')
     expect(d).toContain('Since 08:03')
     const data = { from: '2026-11-16', to: '2026-11-22', totalSeconds: 78409, days: [day] }
-    expect(html(<BarChart days={weekDays(data)} />)).toContain('Hours per day: Monday none')
+    const bars = html(<BarChart days={weekDays(data)} />)
+    expect(bars).toContain('aria-label="Hours per day"')
+    expect(bars).toContain('aria-label="Monday · No shifts"')
     const w = html(<WeekView history={{ data, loading: false, failure: null }} header={<h1>H</h1>} />)
     expect(w).toContain('Week total')
     expect(w).toContain('2 shifts · 2 flagged')

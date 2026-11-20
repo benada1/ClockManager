@@ -20,6 +20,17 @@ export function weekCountsText(data) {
   return flagged ? `${count} · ${flagged} flagged` : count
 }
 
+/**
+ * Bar-chart tooltip for one weekDays() entry: ['Wednesday', '43 h 49 min', '2 shifts'] or ['Tuesday', 'No shifts'].
+ * Joined with ' · ' it is also the column's accessible name, so both always match.
+ */
+export function dayBarParts(day) {
+  if (!day.shifts) return [day.name, 'No shifts']
+  const count = `${day.shifts} ${day.shifts === 1 ? 'shift' : 'shifts'}`
+  // Same wording as the day card: an open shift is not counted yet.
+  return [day.name, day.seconds > 0 ? formatDuration(day.seconds) : 'Nothing counted yet', count]
+}
+
 /** Plain-words notes for a day. Unknown notes are ignored. */
 export function dayNoteTexts(day) {
   return (day.notes ?? []).filter((n) => n === 'dst_change').map(() => 'Clocks changed this night')

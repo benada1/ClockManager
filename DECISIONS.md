@@ -633,6 +633,15 @@ left out, and known limitations. Entries are added in the same change as the cod
 - **Trade-offs:** No screen shows the providers' raw answers anymore; `/health/time` (names, outcomes, round trips) and the logs are what's left for diagnosing a provider. Restoring it means reverting this commit.
 - **Refs:** `TrustedClockStep4QaTests.Removed_time_lab_route_is_404`
 
+### D-088 — Weekly bar chart: a tooltip per day, one tab stop with arrow keys, one name per day
+- **Date:** 2026-11-20 · **Status:** Accepted · **Area:** frontend / UX · **Amends:** D-085 (the chart's single `role="img"` summary)
+- **Context:** The user wants each day's total on hover (History week summary, Clock page "This week"), also for 0-time days, and usable by keyboard, touch and screen readers (WCAG 1.4.13).
+- **Options:** keyboard: (a) one tab stop per day (7 Tab presses per chart) · (b) one tab stop for the chart, arrow keys / Home / End move between days (roving `tabindex`). Screen readers: (c) keep the one summary image and hide the columns · (d) each column is a `role="img"` named with the tooltip text inside a `role="group"` "Hours per day", tooltip `aria-hidden` · (e) tooltip as `role="tooltip"` linked by `aria-describedby`.
+- **Decision:** (b) + (d). The tab stop starts on the highlighted day (today on the Clock page), else Monday. The whole column (bar, empty space, label) is the hit area. Hover or focus shows the card; a click or tap keeps it until a tap/click outside, blur or Escape; Escape works anywhere while it shows. Text from `dayBarParts` (same `formatDuration` as the day cards): "Wednesday · 43 h 49 min · 2 shifts", "Tuesday · No shifts", "Thursday · Nothing counted yet · 1 shift" (open shift only). The outer two columns on each side anchor the card to their edge so it stays inside the chart.
+- **Why:** (a) adds 7 stops to the Clock page's tab order for read-only data; (b) is the usual chart/toolbar pattern. (c) would say every value twice once the tooltip is readable; (e) reads the name and then the same description again. With (d) each value is said once, in browse mode too, and the name equals the visible text.
+- **Trade-offs:** Arrow keys are not discoverable without a hint; Tab users still get today's value and the arrows work as in other charts. After a mouse click the card stays (focus) until the user clicks elsewhere or presses Escape.
+- **Refs:** `src/components/BarChart.jsx`, `barChartNav.js` · `barChart.test.jsx`, `views.smoke.test.jsx`
+
 ## Edge cases
 
 | Scenario | Handling | Covered by |
