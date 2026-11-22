@@ -226,3 +226,9 @@ Where Claude Code helped, and where its output had to be corrected. One entry pe
 - **Asked:** make the README, DECISIONS, plans and `.claude/` true and consistent, and test the README from a clean clone.
 - **What was wrong:** a lint warning had been left in a login component although CLAUDE.md says lint must be clean; a skill example pointed to a plan file and a test name that do not exist; the README still used "Phase N" headings and had no map for a reviewer. The clean-clone run itself found nothing wrong in the README steps.
 - **Fix:** each as its own commit. Scripted checks found the decision ids, commit hashes, test names and file references in DECISIONS.md all valid.
+
+## 2026-11-22 — README said the UI was never checked in a browser
+
+- **Asked:** the user noticed the README's "Try the app by hand" note during interview prep.
+- **What went wrong:** on 18 Nov, the day the screens were built, Claude wrote that the author had not looked at them in a browser. Claude only knew what it had seen in its own sessions, stated that as a fact about the user, and never updated it. The user had gone through every page since.
+- **Fix:** the note now says the screens were checked by hand. Lesson: write "should be checked by hand", or ask, instead of stating what the user did or didn't do.

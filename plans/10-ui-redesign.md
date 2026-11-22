@@ -65,4 +65,4 @@ first visit; a sun/moon button switches it and the choice is remembered. Nothing
 - New tests: `theme.test.js`, `serverClock.test.js`, `views.test.js`, `views.smoke.test.jsx` (server-side render of the main views).
 - Decisions: D-082 (theme, light default, contrast fixes), D-083 (no web font), D-084 (live server clock), D-085 (one clock card), D-086 (Team page); D-057 superseded, D-045/D-047/D-058 notes updated; four edge-case rows; "Not done" lists the mockup parts the API has no data for.
 - Checked: production build, oxlint, Vitest, clock guard, the built CSS has the dark block and the used utilities, `npm run dev:mock` serves the page and the mock API.
-- **Not checked:** the screens were not opened in a browser by the author (no browser tool in this session). The README manual list covers it, plus: both themes, a narrow window, `?mock=notime`, `?mock=open`, `?mock=manager`.
+- **Checked by hand, not by Claude:** Claude had no browser tool in this session, so the author checked the screens in the browser. The README manual list covers it, plus: both themes, a narrow window, `?mock=notime`, `?mock=open`, `?mock=manager`.

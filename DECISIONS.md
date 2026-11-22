@@ -842,6 +842,7 @@ From Phase 1 on, each correction to committed code is its own `fix:` commit.
 | 2026-11-18 | CLAUDE.md listed the stack twice | Looked like a bad merge in a file reviewers read | One line kept | `7517ef0` |
 | 2026-11-18 | A lint warning was left in the login component although CLAUDE.md says lint must be clean | Found by the clean-clone run in Phase 9 | The first load no longer sets state in an effect | `dc5a0a6` |
 | 2026-11-18 | A skill example pointed at a plan file and a test name that do not exist | Found by the Phase 9 reference check | Points at the real plan and test | `b67115d` |
+| 2026-11-22 | The README said the author had never looked at the screens in a browser | Written on 18 Nov, the day the UI was built, and never updated; the user had since checked every page | README now says the screens were checked by hand | this commit |
 
 ## Known limitations
 

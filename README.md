@@ -96,7 +96,7 @@ run, so the integration tests run on every push (D-026).
 
 ## Try the app by hand
 
-**Honest note:** the screens were checked from the code, the mock scenarios and the tests, and the flows were run against the real backend with curl. The author has not looked at them in a browser, so this list is the manual check.
+**Note:** besides the tests and mock scenarios, the author has gone through all the screens by hand in the browser. Repeat this list after UI changes.
 
 Start the backend and the frontend (see Run locally), open http://localhost:5173 and check by hand:
 1. **Sign up** with a new username, then you land on the Clock page (signup logs you in). The big clock and the greeting come from the server's trusted time; with the providers down it says "Server time unavailable" instead of showing the PC's time.
